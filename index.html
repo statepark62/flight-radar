@@ -1,0 +1,402 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>글로벌 항공 레이더</title>
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.css" />
+<script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.js"></script>
+<style>
+  :root{
+    --scope-bg:#03110a;
+    --scope-bg2:#020c07;
+    --phosphor:#3ef08c;
+    --phosphor-dim:#1c6b45;
+    --phosphor-bright:#b6ffd7;
+    --amber:#ffb84d;
+    --cyan:#5fd7ff;
+    --grid:#0d3322;
+    --panel:#06180f;
+    --danger:#ff6b6b;
+  }
+  *{box-sizing:border-box;}
+  html,body{ margin:0; padding:0; height:100%; background:var(--scope-bg);
+    font-family:'Courier New', ui-monospace, 'SF Mono', Consolas, monospace;
+    color:var(--phosphor); overflow:hidden; }
+  #app{ display:grid; grid-template-columns: 1fr 300px; grid-template-rows: auto 1fr; height:100vh; }
+  @media (max-width: 720px){
+    #app{ grid-template-columns: 1fr; grid-template-rows: auto 55vh 1fr; }
+    #side{ border-left:none; border-top:1px solid var(--grid); }
+  }
+  header{ grid-column: 1 / -1; display:flex; align-items:flex-start; justify-content:space-between;
+    padding:12px 16px 8px 16px; border-bottom:1px solid var(--grid);
+    background:linear-gradient(180deg, var(--panel), var(--scope-bg)); gap:10px; flex-wrap:wrap; }
+  header h1{ margin:0; font-size:14px; letter-spacing:0.24em; font-weight:700; color:var(--phosphor-bright);
+    text-shadow:0 0 8px rgba(62,240,140,0.55); }
+  header .sub{ font-size:9px; letter-spacing:0.14em; color:var(--phosphor-dim); margin-top:2px; }
+  #searchBox{ background:var(--scope-bg2); border:1px solid var(--phosphor-dim); color:var(--phosphor-bright);
+    font-family:inherit; font-size:11px; padding:6px 10px; letter-spacing:0.06em; width:180px; border-radius:2px; }
+  #searchBox::placeholder{ color:var(--phosphor-dim); }
+  header .status{ text-align:right; font-size:10px; letter-spacing:0.08em; }
+  header .status .clock{ color:var(--phosphor-bright); font-size:13px; }
+  header .status .dot{ display:inline-block; width:7px;height:7px; border-radius:50%; margin-right:6px;
+    background:var(--phosphor); box-shadow:0 0 6px var(--phosphor); }
+  header .status .dot.stale{ background:var(--amber); box-shadow:0 0 6px var(--amber); }
+  header .status .dot.error{ background:var(--danger); box-shadow:0 0 6px var(--danger); }
+
+  #wrap-map{ position:relative; height:100%; width:100%; min-height:0; }
+  #map{ background:var(--scope-bg); height:100%; width:100%; }
+  .leaflet-container{ background:var(--scope-bg) !important; }
+
+  #side{ background:var(--panel); border-left:1px solid var(--grid); display:flex; flex-direction:column; min-height:0; height:100%; }
+  #side .block{ padding:10px 16px; border-bottom:1px solid var(--grid); }
+  #side .block h2{ font-size:10px; letter-spacing:0.18em; margin:0 0 8px 0; color:var(--phosphor-dim); font-weight:700; }
+  .stat-row{ display:flex; justify-content:space-between; font-size:12px; margin-bottom:4px; }
+  .stat-row span:last-child{ color:var(--phosphor-bright); }
+
+  #controls{ display:flex; gap:6px; flex-wrap:wrap; }
+  button{ background:transparent; border:1px solid var(--phosphor-dim); color:var(--phosphor);
+    font-family:inherit; font-size:10px; letter-spacing:0.1em; padding:6px 9px; cursor:pointer; border-radius:2px; }
+  button:hover{ background:rgba(62,240,140,0.12); border-color:var(--phosphor); }
+  button.active{ background:rgba(62,240,140,0.18); border-color:var(--phosphor-bright); color:var(--phosphor-bright); }
+
+  #selected{ font-size:11px; line-height:1.7; }
+  #selected .empty{ color:var(--phosphor-dim); }
+  #selected b{ color:var(--phosphor-bright); }
+
+  #list{ flex:1; overflow-y:auto; padding:2px 0; }
+  .plane-item{ padding:7px 16px; border-bottom:1px solid rgba(13,51,34,0.6); font-size:11px; cursor:pointer; }
+  .plane-item:hover{ background:rgba(62,240,140,0.08); }
+  .plane-item.locked{ background:rgba(62,240,140,0.16); border-left:2px solid var(--phosphor-bright); }
+  .plane-item .cs{ color:var(--phosphor-bright); font-weight:700; letter-spacing:0.05em; }
+  .plane-item .meta{ color:var(--phosphor-dim); margin-top:2px; }
+  #list::-webkit-scrollbar{ width:6px; }
+  #list::-webkit-scrollbar-thumb{ background:var(--phosphor-dim); }
+  #list::-webkit-scrollbar-track{ background:var(--scope-bg2); }
+
+  .plane-icon{ color:var(--phosphor-bright); text-shadow:0 0 6px rgba(62,240,140,0.9); font-size:15px;
+    line-height:15px; text-align:center; pointer-events:none; }
+  .plane-icon.ground{ color:var(--phosphor-dim); text-shadow:none; }
+  .plane-icon.climb{ color:var(--cyan); text-shadow:0 0 6px rgba(95,215,255,0.9); }
+  .plane-icon.descend{ color:var(--amber); text-shadow:0 0 6px rgba(255,184,77,0.9); }
+  .plane-icon.locked{ color:#fff; text-shadow:0 0 10px #fff, 0 0 16px var(--phosphor-bright); font-size:19px; }
+
+  .airport-icon{ color:var(--amber); font-size:11px; text-shadow:0 0 4px rgba(255,184,77,0.8); }
+
+  .leaflet-popup-content-wrapper{ background:var(--panel); color:var(--phosphor); border:1px solid var(--phosphor-dim);
+    border-radius:2px; font-family:inherit; }
+  .leaflet-popup-tip{ background:var(--panel); }
+  .leaflet-popup-content{ font-size:11px; line-height:1.6; margin:8px 10px; }
+  .leaflet-popup-content b{ color:var(--phosphor-bright); }
+  .leaflet-popup-close-button{ color:var(--phosphor-dim) !important; }
+
+  #banner{ position:absolute; bottom:10px; left:10px; z-index:1000; background:rgba(6,24,15,0.9);
+    border:1px solid var(--grid); padding:6px 10px; font-size:9.5px; color:var(--phosphor-dim);
+    max-width:360px; letter-spacing:0.02em; border-radius:2px; }
+
+  #loading{ position:absolute; inset:0; display:flex; align-items:center; justify-content:center;
+    background:var(--scope-bg); z-index:900; font-size:12px; letter-spacing:0.2em; color:var(--phosphor-dim); }
+</style>
+</head>
+<body>
+<div id="app">
+  <header>
+    <div>
+      <h1>GLOBAL FLIGHT RADAR</h1>
+      <div class="sub">GitHub Actions가 갱신하는 정적 데이터 · CORS 문제 없음 · 궤적/검색/공항</div>
+    </div>
+    <input id="searchBox" placeholder="콜사인/국적 검색..." />
+    <div class="status">
+      <div><span class="dot" id="statusDot"></span><span id="statusText">연결 중...</span></div>
+      <div class="clock" id="clock">--:--:--</div>
+    </div>
+  </header>
+
+  <div id="wrap-map">
+    <div id="map"></div>
+    <div id="loading">SCANNING AIRSPACE...</div>
+    <div id="banner">데이터는 GitHub Actions가 몇 분 간격으로 flights.json을 갱신해 제공 (같은 저장소 내 정적 파일이라 CORS 없음) · 화면 이동/확대는 이미 받은 데이터에서 즉시 필터링 · 궤적은 접속 이후 표시</div>
+  </div>
+
+  <div id="side">
+    <div class="block">
+      <h2>SCOPE STATUS</h2>
+      <div class="stat-row"><span>뷰포트 내 항공기</span><span id="statCount">0</span></div>
+      <div class="stat-row"><span>비행중 / 지상</span><span id="statAirGround">0 / 0</span></div>
+      <div class="stat-row"><span>상위 국적</span><span id="statTopCountry">-</span></div>
+      <div class="stat-row"><span>마지막 갱신</span><span id="statUpdated">-</span></div>
+    </div>
+    <div class="block">
+      <h2>CONTROLS</h2>
+      <div id="controls">
+        <button id="btnRefresh">새로고침</button>
+        <button id="btnAuto" class="active">자동갱신 ON</button>
+        <button id="btnTrail" class="active">궤적 ON</button>
+        <button id="btnUnlock">추적 해제</button>
+      </div>
+    </div>
+    <div class="block">
+      <h2>LOCKED TARGET</h2>
+      <div id="selected"><span class="empty">항공기를 선택하세요</span></div>
+    </div>
+    <div class="block" style="border-bottom:none; flex:0 0 auto;">
+      <h2 id="listTitle">TRACKED FLIGHTS</h2>
+    </div>
+    <div id="list"></div>
+  </div>
+</div>
+
+<script>
+// ---- Config ----
+const REFRESH_MS = 60000; // flights.json은 GitHub Actions가 몇 분 간격으로 갱신 — 60초마다 재확인
+const MAX_TRAIL_POINTS = 40;
+const MAJOR_AIRPORTS = [
+  ["ICN 인천", 37.4602, 126.4407], ["GMP 김포", 37.5583, 126.7906], ["PUS 부산/김해", 35.1795, 128.9382],
+  ["CJU 제주", 33.5113, 126.4930], ["NRT 나리타", 35.7720, 140.3929], ["HND 하네다", 35.5494, 139.7798],
+  ["KIX 간사이", 34.4347, 135.2441], ["PEK 베이징", 40.0801, 116.5846], ["PVG 상하이푸동", 31.1443, 121.8083],
+  ["HKG 홍콩", 22.3080, 113.9185], ["TPE 타이베이", 25.0777, 121.2328], ["SIN 싱가포르", 1.3644, 103.9915],
+  ["BKK 방콕", 13.6900, 100.7501], ["DXB 두바이", 25.2532, 55.3657], ["LHR 런던", 51.4700, -0.4543],
+  ["CDG 파리", 49.0097, 2.5479], ["FRA 프랑크푸르트", 50.0379, 8.5622], ["JFK 뉴욕", 40.6413, -73.7781],
+  ["LAX 로스앤젤레스", 33.9416, -118.4085], ["SYD 시드니", -33.9399, 151.1753], ["VVO 블라디보스토크", 43.3990, 132.1479],
+];
+
+// ---- Map setup ----
+const map = L.map('map', { zoomControl: true, attributionControl: true, minZoom: 2, maxZoom: 11 })
+  .setView([36.5, 127.9], 6);
+
+L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_nolabels/{z}/{x}/{y}{r}.png', {
+  attribution: '&copy; OpenStreetMap &copy; CARTO · Flight data &copy; OpenSky Network',
+  subdomains: 'abcd', maxZoom: 12,
+}).addTo(map);
+
+setTimeout(() => map.invalidateSize(), 100);
+window.addEventListener('resize', () => map.invalidateSize());
+new ResizeObserver(() => map.invalidateSize()).observe(document.getElementById('wrap-map'));
+
+const airportPane = L.layerGroup().addTo(map);
+for(const [name, lat, lon] of MAJOR_AIRPORTS){
+  L.marker([lat, lon], {
+    icon: L.divIcon({ className:'', html:'<div class="airport-icon">&#9678;</div>', iconSize:[12,12], iconAnchor:[6,6] })
+  }).bindTooltip(name, {direction:'top'}).addTo(airportPane);
+}
+
+let markers = {};      // icao24 -> marker
+let trails = {};       // icao24 -> [[lat,lon], ...]
+let trailLines = {};   // icao24 -> polyline
+let planeData = {};    // icao24 -> latest state fields
+let lockedId = null;
+let followLocked = false;
+let showTrail = true;
+let autoRefresh = true;
+let timer = null;
+let fetchInFlight = false;
+let searchTerm = '';
+
+function planeClass(onGround, vRate){
+  if(onGround) return 'ground';
+  if(vRate !== null && vRate > 1) return 'climb';
+  if(vRate !== null && vRate < -1) return 'descend';
+  return '';
+}
+function planeIcon(track, cls, locked){
+  const rotation = track || 0;
+  const classes = 'plane-icon ' + cls + (locked ? ' locked' : '');
+  return L.divIcon({ className:'', html:`<div class="${classes}" style="transform:rotate(${rotation}deg);">&#9992;</div>`,
+    iconSize: locked?[22,22]:[16,16], iconAnchor: locked?[11,11]:[8,8] });
+}
+function fmt(v, unit=''){ if(v===null||v===undefined) return '-'; return typeof v==='number' ? `${Math.round(v*10)/10}${unit}` : `${v}${unit}`; }
+
+function setStatus(state, text){
+  document.getElementById('statusDot').className = 'dot' + (state==='error'?' error':state==='stale'?' stale':'');
+  document.getElementById('statusText').textContent = text;
+}
+function updateClock(){ document.getElementById('clock').textContent = new Date().toLocaleTimeString('ko-KR',{hour12:false}); }
+setInterval(updateClock,1000); updateClock();
+
+function currentBBox(){
+  const b = map.getBounds();
+  return { lamin: Math.max(b.getSouth(),-90), lomin: Math.max(b.getWest(),-180),
+           lamax: Math.min(b.getNorth(),90), lomax: Math.min(b.getEast(),180) };
+}
+
+let allStates = []; // flights.json 전체 데이터 (GitHub Actions가 주기적으로 갱신)
+
+async function loadFlightData(){
+  if(fetchInFlight) return;
+  fetchInFlight = true;
+  setStatus('ok','갱신 중...');
+  try{
+    // 같은 저장소(GitHub Pages)에서 정적 JSON을 읽어오므로 CORS 문제가 아예 발생하지 않음.
+    // 이 JSON은 GitHub Actions가 서버(Actions 러너)에서 대신 OpenSky를 호출해 주기적으로 만들어 둠.
+    const res = await fetch(`./flights.json?t=${Date.now()}`, { cache: 'no-store' });
+    if(!res.ok) throw new Error(`HTTP ${res.status}`);
+    const data = await res.json();
+    allStates = data.states || [];
+    document.getElementById('statUpdated').textContent =
+      data.time ? new Date(data.time * 1000).toLocaleTimeString('ko-KR',{hour12:false}) : new Date().toLocaleTimeString('ko-KR',{hour12:false});
+    setStatus('ok', `수신 완료 (전체 ${allStates.length}대)`);
+    document.getElementById('loading').style.display = 'none';
+    applyViewportFilter();
+  }catch(err){
+    console.error(err);
+    setStatus('error','flights.json 로드 실패 (아직 Actions가 안 돌았거나 경로 오류)');
+    document.getElementById('loading').style.display = 'none';
+  }finally{
+    fetchInFlight = false;
+  }
+}
+
+function applyViewportFilter(){
+  const b = map.getBounds();
+  const inView = allStates.filter(s =>
+    s[5]!==null && s[6]!==null &&
+    s[6]>=b.getSouth() && s[6]<=b.getNorth() && s[5]>=b.getWest() && s[5]<=b.getEast()
+  );
+  renderFlights(inView);
+}
+
+function renderFlights(states){
+  const seen = new Set();
+  let airCount=0, groundCount=0;
+  const countryCount = {};
+
+  const filtered = states.filter(s => s[5]!==null && s[6]!==null);
+
+  for(const s of filtered){
+    const icao24=s[0], callsign=(s[1]||'').trim()||'(콜사인없음)', country=s[2];
+    const lon=s[5], lat=s[6], altitude=s[7], onGround=s[8], velocity=s[9], track=s[10], vRate=s[11];
+
+    seen.add(icao24);
+    planeData[icao24] = {icao24,callsign,country,lat,lon,altitude,onGround,velocity,track,vRate};
+    if(onGround) groundCount++; else airCount++;
+    countryCount[country] = (countryCount[country]||0)+1;
+
+    if(showTrail){
+      if(!trails[icao24]) trails[icao24]=[];
+      trails[icao24].push([lat,lon]);
+      if(trails[icao24].length>MAX_TRAIL_POINTS) trails[icao24].shift();
+      if(!trailLines[icao24]){
+        trailLines[icao24]=L.polyline(trails[icao24],{color:'#3ef08c',weight:1,opacity:0.35}).addTo(map);
+      } else {
+        trailLines[icao24].setLatLngs(trails[icao24]);
+      }
+    }
+
+    const cls = planeClass(onGround, vRate);
+    const isLocked = (icao24===lockedId);
+    if(markers[icao24]){
+      markers[icao24].setLatLng([lat,lon]);
+      markers[icao24].setIcon(planeIcon(track,cls,isLocked));
+    } else {
+      const m = L.marker([lat,lon],{icon:planeIcon(track,cls,isLocked)}).addTo(map);
+      m.on('click', () => lockOn(icao24));
+      markers[icao24]=m;
+    }
+  }
+
+  // 사라진 마커/궤적 정리
+  for(const id in markers){
+    if(!seen.has(id)){
+      map.removeLayer(markers[id]); delete markers[id];
+      if(trailLines[id]){ map.removeLayer(trailLines[id]); delete trailLines[id]; }
+      delete trails[id]; delete planeData[id];
+      if(id===lockedId) lockedId=null;
+    }
+  }
+
+  document.getElementById('statCount').textContent = seen.size;
+  document.getElementById('statAirGround').textContent = `${airCount} / ${groundCount}`;
+  const top = Object.entries(countryCount).sort((a,b)=>b[1]-a[1])[0];
+  document.getElementById('statTopCountry').textContent = top ? `${top[0]} (${top[1]})` : '-';
+
+  renderList();
+  renderSelected();
+  if(followLocked && lockedId && planeData[lockedId]){
+    map.panTo([planeData[lockedId].lat, planeData[lockedId].lon], {animate:true});
+  }
+}
+
+function renderList(){
+  const listEl = document.getElementById('list');
+  listEl.innerHTML = '';
+  const term = searchTerm.trim().toLowerCase();
+  const arr = Object.values(planeData)
+    .filter(p => !term || p.callsign.toLowerCase().includes(term) || (p.country||'').toLowerCase().includes(term))
+    .sort((a,b) => a.callsign.localeCompare(b.callsign));
+
+  document.getElementById('listTitle').textContent = `TRACKED FLIGHTS (${arr.length})`;
+
+  for(const p of arr){
+    const altFt = p.altitude!==null ? p.altitude*3.28084 : null;
+    const spdKt = p.velocity!==null ? p.velocity*1.94384 : null;
+    const item = document.createElement('div');
+    item.className = 'plane-item' + (p.icao24===lockedId ? ' locked' : '');
+    item.innerHTML = `<div class="cs">${p.callsign}</div><div class="meta">${p.country} · ${fmt(altFt,'ft')} · ${fmt(spdKt,'kt')}</div>`;
+    item.addEventListener('click', () => { lockOn(p.icao24); map.setView([p.lat,p.lon], Math.max(map.getZoom(),7)); });
+    listEl.appendChild(item);
+  }
+}
+
+function lockOn(icao24){
+  lockedId = (lockedId===icao24) ? null : icao24;
+  renderSelected();
+  renderList();
+  // 아이콘 갱신
+  for(const id in markers){
+    const p = planeData[id];
+    if(!p) continue;
+    const cls = planeClass(p.onGround,p.vRate);
+    markers[id].setIcon(planeIcon(p.track,cls,id===lockedId));
+  }
+}
+
+function renderSelected(){
+  const el = document.getElementById('selected');
+  if(!lockedId || !planeData[lockedId]){
+    el.innerHTML = '<span class="empty">항공기를 선택하세요</span>';
+    return;
+  }
+  const p = planeData[lockedId];
+  const altFt = p.altitude!==null ? p.altitude*3.28084 : null;
+  const spdKt = p.velocity!==null ? p.velocity*1.94384 : null;
+  el.innerHTML = `
+    <b>${p.callsign}</b><br/>
+    국적: ${p.country}<br/>
+    고도: ${fmt(altFt,' ft')} ${p.onGround?'(지상)':''}<br/>
+    속도: ${fmt(spdKt,' kt')}<br/>
+    방위: ${fmt(p.track,'°')}<br/>
+    수직속도: ${fmt(p.vRate,' m/s')}<br/>
+    ICAO24: ${p.icao24}<br/>
+    궤적점: ${(trails[p.icao24]||[]).length}개
+  `;
+}
+
+map.on('moveend zoomend', () => applyViewportFilter());
+
+document.getElementById('btnRefresh').addEventListener('click', loadFlightData);
+document.getElementById('btnAuto').addEventListener('click', (e) => {
+  autoRefresh = !autoRefresh;
+  e.target.classList.toggle('active', autoRefresh);
+  e.target.textContent = autoRefresh ? '자동갱신 ON' : '자동갱신 OFF';
+  if(autoRefresh) startAuto(); else stopAuto();
+});
+document.getElementById('btnTrail').addEventListener('click', (e) => {
+  showTrail = !showTrail;
+  e.target.classList.toggle('active', showTrail);
+  e.target.textContent = showTrail ? '궤적 ON' : '궤적 OFF';
+  if(!showTrail){
+    for(const id in trailLines){ map.removeLayer(trailLines[id]); }
+    trailLines = {}; trails = {};
+  }
+});
+document.getElementById('btnUnlock').addEventListener('click', () => { lockedId=null; followLocked=false; renderSelected(); renderList(); });
+document.getElementById('searchBox').addEventListener('input', (e) => { searchTerm = e.target.value; renderList(); });
+
+function startAuto(){ if(timer) clearInterval(timer); timer = setInterval(loadFlightData, REFRESH_MS); }
+function stopAuto(){ if(timer) clearInterval(timer); timer=null; }
+
+loadFlightData();
+startAuto();
+</script>
+</body>
+</html>
