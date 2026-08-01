@@ -521,12 +521,40 @@ function drawRoute(route){
 // 출발 공항 → 항공기 현재 위치까지만 선을 그림 (도착지까지는 아직 안 그림).
 // 항공기 위치가 갱신될 때마다 다시 호출해서 선을 늘려감.
 // 글로우(굵고 흐린 선) + 메인(밝고 흐르는 점선) 두 겹으로 그려서 눈에 확 띄게 함.
+// 두 좌표 사이의 대권항로(지구 곡률을 따르는 최단 경로) 중간점들을 계산.
+// 평면 지도에서 직선으로 이으면 실제 비행경로와 달라지므로(예: 미국-한국 노선이 그린란드 쪽으로 휘는 것),
+// 구면 선형보간(slerp)으로 실제 항로에 가까운 곡선을 만든다.
+function greatCirclePoints(lat1, lon1, lat2, lon2, n){
+  n = n || 64;
+  const toRad = d => d * Math.PI / 180, toDeg = r => r * 180 / Math.PI;
+  const φ1=toRad(lat1), λ1=toRad(lon1), φ2=toRad(lat2), λ2=toRad(lon2);
+  const d = 2*Math.asin(Math.sqrt(Math.sin((φ2-φ1)/2)**2 + Math.cos(φ1)*Math.cos(φ2)*Math.sin((λ2-λ1)/2)**2));
+  if(d < 1e-9) return [[lat1,lon1],[lat2,lon2]];
+  const pts = [];
+  for(let i=0;i<=n;i++){
+    const f = i/n;
+    const A = Math.sin((1-f)*d)/Math.sin(d), B = Math.sin(f*d)/Math.sin(d);
+    const x = A*Math.cos(φ1)*Math.cos(λ1) + B*Math.cos(φ2)*Math.cos(λ2);
+    const y = A*Math.cos(φ1)*Math.sin(λ1) + B*Math.cos(φ2)*Math.sin(λ2);
+    const z = A*Math.sin(φ1) + B*Math.sin(φ2);
+    const φ = Math.atan2(z, Math.sqrt(x*x+y*y));
+    const λ = Math.atan2(y, x);
+    pts.push([toDeg(φ), toDeg(λ)]);
+  }
+  // 경도가 ±180°를 넘나들 때 지도에서 선이 뚝 끊겨 보이지 않도록 연속되게 보정
+  for(let i=1;i<pts.length;i++){
+    while(pts[i][1] - pts[i-1][1] > 180) pts[i][1] -= 360;
+    while(pts[i][1] - pts[i-1][1] < -180) pts[i][1] += 360;
+  }
+  return pts;
+}
+
 function updateRouteLine(){
   if(!currentRoute || !lockedId || !planeData[lockedId]) return;
   const o = currentRoute.origin;
   const p = planeData[lockedId];
   if(routeLineLayer){ routeLayer.removeLayer(routeLineLayer); }
-  const coords = [[o.latitude,o.longitude],[p.lat,p.lon]];
+  const coords = greatCirclePoints(o.latitude, o.longitude, p.lat, p.lon);
   routeLineLayer = L.layerGroup([
     L.polyline(coords, {color:'#ffe066', weight:9, opacity:0.35, className:'route-line-glow'}),
     L.polyline(coords, {color:'#ffe066', weight:3, opacity:1, dashArray:'10,8', className:'route-line-main'}),
