@@ -87,6 +87,7 @@
   .plane-icon.climb{ color:var(--cyan); text-shadow:0 0 6px rgba(95,215,255,0.9), 0 0 3px #000, 1px 1px 0 #000, -1px -1px 0 #000; }
   .plane-icon.descend{ color:var(--amber); text-shadow:0 0 6px rgba(255,184,77,0.9), 0 0 3px #000, 1px 1px 0 #000, -1px -1px 0 #000; }
   .plane-icon.locked{ color:#fff; text-shadow:0 0 10px #fff, 0 0 16px var(--phosphor-bright), 1px 1px 0 #000, -1px -1px 0 #000; font-size:19px; }
+  .plane-icon.dim{ color:#8a8f8c !important; text-shadow:1px 1px 0 rgba(0,0,0,0.6), -1px -1px 0 rgba(0,0,0,0.6) !important; opacity:0.55; }
 
   .airport-icon{ color:var(--amber); font-size:11px; text-shadow:0 0 4px rgba(255,184,77,0.8), 1px 1px 0 #000, -1px -1px 0 #000; }
 
@@ -205,6 +206,38 @@
 // ---- Config ----
 const REFRESH_MS = 60000; // flights.json은 GitHub Actions가 몇 분 간격으로 갱신 — 60초마다 재확인
 const MAX_TRAIL_POINTS = 40;
+// IATA/ICAO 코드 → 한글 도시(공항) 명칭. adsbdb가 영어로 주는 출도착지 정보를 한글로 바꾸기 위함.
+// 목록에 없는 공항은 영문 원문으로 표시됨.
+const AIRPORT_KO = {
+  ICN:'인천', GMP:'김포', PUS:'부산(김해)', CJU:'제주', TAE:'대구', CJJ:'청주', MWX:'무안', RSU:'여수', USN:'울산', KWJ:'광주', WJU:'원주', KPO:'포항', YNY:'양양',
+  NRT:'도쿄(나리타)', HND:'도쿄(하네다)', KIX:'오사카(간사이)', ITM:'오사카(이타미)', NGO:'나고야(주부)', FUK:'후쿠오카', CTS:'삿포로(신치토세)', OKA:'오키나와', KOJ:'가고시마', HIJ:'히로시마',
+  PEK:'베이징(서우두)', PKX:'베이징(다싱)', PVG:'상하이(푸둥)', SHA:'상하이(홍차오)', CAN:'광저우', SZX:'선전', CTU:'청두', XIY:'시안', HGH:'항저우', TSN:'톈진', DLC:'다롄', SHE:'선양', HRB:'하얼빈', CGO:'정저우', WUH:'우한', NKG:'난징', TAO:'칭다오',
+  HKG:'홍콩', TPE:'타이베이(타오위안)', TSA:'타이베이(쑹산)', KHH:'가오슝', MFM:'마카오',
+  SIN:'싱가포르', BKK:'방콕(수완나품)', DMK:'방콕(돈므앙)', KUL:'쿠알라룸푸르', CGK:'자카르타', DPS:'발리(덴파사르)', MNL:'마닐라', CEB:'세부', HAN:'하노이', SGN:'호치민', DAD:'다낭', RGN:'양곤', PNH:'프놈펜',
+  DEL:'뉴델리', BOM:'뭄바이', BLR:'벵갈루루', DXB:'두바이', AUH:'아부다비', DOH:'도하', IST:'이스탄불', TLV:'텔아비브',
+  ULN:'울란바토르', VVO:'블라디보스토크', KHV:'하바롭스크',
+  SYD:'시드니', MEL:'멜버른', BNE:'브리즈번', AKL:'오클랜드', GUM:'괌',
+  LHR:'런던(히스로)', LGW:'런던(개트윅)', CDG:'파리(샤를드골)', FRA:'프랑크푸르트', MUC:'뮌헨', AMS:'암스테르담', MAD:'마드리드', BCN:'바르셀로나', FCO:'로마(피우미치노)', ZRH:'취리히', VIE:'빈', CPH:'코펜하겐', HEL:'헬싱키', SVO:'모스크바(세레메티예보)',
+  JFK:'뉴욕(JFK)', EWR:'뉴어크', LAX:'로스앤젤레스', SFO:'샌프란시스코', SEA:'시애틀', ORD:'시카고', ATL:'애틀랜타', IAD:'워싱턴(덜레스)', HNL:'호놀룰루', YVR:'밴쿠버', YYZ:'토론토',
+};
+function airportKoName(ap){
+  if(!ap) return '';
+  const code = ap.iata_code || ap.icao_code;
+  return AIRPORT_KO[code] || `${ap.municipality||''} ${ap.name||''}`.trim();
+}
+
+const AIRLINE_KO = {
+  'Korean Air':'대한항공', 'Asiana Airlines':'아시아나항공', 'Jeju Air':'제주항공', 'Air Busan':'에어부산',
+  'Eastar Jet':'이스타항공', "T'way Air":'티웨이항공', 'Tway Air':'티웨이항공', 'Air Seoul':'에어서울', 'Air Premia':'에어프레미아',
+  'Japan Airlines':'일본항공', 'All Nippon Airways':'전일본공수',
+  'Air China':'중국국제항공', 'China Eastern Airlines':'중국동방항공', 'China Southern Airlines':'중국남방항공',
+  'Cathay Pacific':'캐세이퍼시픽', 'China Airlines':'중화항공', 'EVA Air':'에바항공',
+  'Singapore Airlines':'싱가포르항공', 'Thai Airways':'타이항공', 'Emirates':'에미레이트항공', 'Qatar Airways':'카타르항공',
+  'United Airlines':'유나이티드항공', 'Delta Air Lines':'델타항공', 'American Airlines':'아메리칸항공',
+  'British Airways':'영국항공', 'Air France':'에어프랑스', 'Lufthansa':'루프트한자', 'KLM Royal Dutch Airlines':'KLM',
+};
+function airlineKoName(name){ return AIRLINE_KO[name] || name; }
+
 const MAJOR_AIRPORTS = [
   ["ICN 인천", 37.4602, 126.4407], ["GMP 김포", 37.5583, 126.7906], ["PUS 부산/김해", 35.1795, 128.9382],
   ["CJU 제주", 33.5113, 126.4930], ["NRT 나리타", 35.7720, 140.3929], ["HND 하네다", 35.5494, 139.7798],
@@ -260,9 +293,9 @@ function planeClass(onGround, vRate){
   if(vRate !== null && vRate < -1) return 'descend';
   return '';
 }
-function planeIcon(track, cls, locked, kr){
+function planeIcon(track, cls, locked, kr, dim){
   const rotation = track || 0;
-  const classes = 'plane-icon ' + cls + (kr ? ' kr' : '') + (locked ? ' locked' : '');
+  const classes = 'plane-icon ' + cls + (kr ? ' kr' : '') + (locked ? ' locked' : '') + (dim ? ' dim' : '');
   return L.divIcon({ className:'', html:`<div class="${classes}" style="transform:rotate(${rotation}deg);">&#9992;</div>`,
     iconSize: locked?[22,22]:[16,16], iconAnchor: locked?[11,11]:[8,8] });
 }
@@ -349,11 +382,13 @@ function renderFlights(states){
     const cls = planeClass(onGround, vRate);
     const isLocked = (icao24===lockedId);
     const isKr = krHighlight && isKorean(country);
+    const isDim = !!lockedId && !isLocked;
     if(markers[icao24]){
       markers[icao24].setLatLng([lat,lon]);
-      markers[icao24].setIcon(planeIcon(track,cls,isLocked,isKr));
+      markers[icao24].setIcon(planeIcon(track,cls,isLocked,isKr,isDim));
+      if(isDim) markers[icao24].setZIndexOffset(-1000); else markers[icao24].setZIndexOffset(isLocked?1000:0);
     } else {
-      const m = L.marker([lat,lon],{icon:planeIcon(track,cls,isLocked,isKr)}).addTo(map);
+      const m = L.marker([lat,lon],{icon:planeIcon(track,cls,isLocked,isKr,isDim), zIndexOffset:isDim?-1000:(isLocked?1000:0)}).addTo(map);
       m.on('click', () => lockOn(icao24));
       markers[icao24]=m;
     }
@@ -447,10 +482,22 @@ function drawRoute(route){
   const o = route.origin, d = route.destination;
   const originIcon = L.divIcon({ className:'', html:'<div class="route-icon origin">&#9650;</div>', iconSize:[14,14], iconAnchor:[7,7] });
   const destIcon = L.divIcon({ className:'', html:'<div class="route-icon dest">&#9679;</div>', iconSize:[14,14], iconAnchor:[7,7] });
-  L.marker([o.latitude,o.longitude],{icon:originIcon}).bindTooltip(`출발: ${o.municipality||''} ${o.name} (${o.iata_code||o.icao_code})`).addTo(routeLayer);
-  L.marker([d.latitude,d.longitude],{icon:destIcon}).bindTooltip(`도착: ${d.municipality||''} ${d.name} (${d.iata_code||d.icao_code})`).addTo(routeLayer);
+  L.marker([o.latitude,o.longitude],{icon:originIcon}).bindTooltip(`출발: ${airportKoName(o)} (${o.iata_code||o.icao_code})`).addTo(routeLayer);
+  L.marker([d.latitude,d.longitude],{icon:destIcon}).bindTooltip(`도착: ${airportKoName(d)} (${d.iata_code||d.icao_code})`).addTo(routeLayer);
   L.polyline([[o.latitude,o.longitude],[d.latitude,d.longitude]], {color:'#ffd166', weight:2, dashArray:'4,5', opacity:0.85}).addTo(routeLayer);
   renderSelected();
+}
+
+function refreshMarkerIcons(){
+  for(const id in markers){
+    const p = planeData[id];
+    if(!p) continue;
+    const cls = planeClass(p.onGround,p.vRate);
+    const isLocked = id===lockedId;
+    const isDim = !!lockedId && !isLocked;
+    markers[id].setIcon(planeIcon(p.track,cls,isLocked,krHighlight && isKorean(p.country),isDim));
+    markers[id].setZIndexOffset(isDim ? -1000 : (isLocked ? 1000 : 0));
+  }
 }
 
 function lockOn(icao24){
@@ -459,13 +506,7 @@ function lockOn(icao24){
   clearRoute();
   renderSelected();
   renderList();
-  // 아이콘 갱신
-  for(const id in markers){
-    const p = planeData[id];
-    if(!p) continue;
-    const cls = planeClass(p.onGround,p.vRate);
-    markers[id].setIcon(planeIcon(p.track,cls,id===lockedId,krHighlight && isKorean(p.country)));
-  }
+  refreshMarkerIcons();
   if(lockedId && planeData[lockedId]){
     fetchRoute(planeData[lockedId].callsign);
   }
@@ -492,9 +533,9 @@ function renderSelected(){
       const o = route.origin, d = route.destination;
       routeHtml = `
         <div class="route-box">
-          ▲ 출발: <b>${o.municipality||''} ${o.name}</b> (${o.iata_code||o.icao_code})<br/>
-          ● 도착: <b>${d.municipality||''} ${d.name}</b> (${d.iata_code||d.icao_code})
-          ${route.airline ? `<br/>항공사: ${route.airline.name}` : ''}
+          ▲ 출발: <b>${airportKoName(o)}</b> (${o.iata_code||o.icao_code})<br/>
+          ● 도착: <b>${airportKoName(d)}</b> (${d.iata_code||d.icao_code})
+          ${route.airline ? `<br/>항공사: ${airlineKoName(route.airline.name)}` : ''}
         </div>`;
     }
   }
@@ -530,7 +571,7 @@ document.getElementById('btnTrail').addEventListener('click', (e) => {
     trailLines = {}; trails = {};
   }
 });
-document.getElementById('btnUnlock').addEventListener('click', () => { lockedId=null; followLocked=false; clearRoute(); renderSelected(); renderList(); });
+document.getElementById('btnUnlock').addEventListener('click', () => { lockedId=null; followLocked=false; clearRoute(); renderSelected(); renderList(); refreshMarkerIcons(); });
 document.getElementById('searchBox').addEventListener('input', (e) => { searchTerm = e.target.value; renderList(); });
 document.getElementById('airlineFilter').addEventListener('change', (e) => { airlineFilter = e.target.value; applyViewportFilter(); });
 document.getElementById('btnKr').addEventListener('click', (e) => {
