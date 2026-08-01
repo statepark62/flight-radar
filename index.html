@@ -59,10 +59,9 @@
     font-family:inherit; font-size:11px; padding:6px 8px; border-radius:2px; }
   #controls{ display:flex; gap:6px; flex-wrap:wrap; }
 
-  .plane-icon.kr{ color:#cd2e3a; text-shadow:0 0 8px rgba(205,46,58,0.9), 0 0 3px #000, 1px 1px 0 #000, -1px -1px 0 #000; }
-  .plane-icon.kr.locked{ color:#fff; text-shadow:0 0 10px #fff, 0 0 18px #cd2e3a, 1px 1px 0 #000, -1px -1px 0 #000; }
-  .plane-item.kr{ border-left:2px solid #cd2e3a; }
+  .plane-item.kr{ border-left:2px solid #ff3b3b; }
   .plane-item.kr .cs{ color:#ff8a94; }
+  .plane-item .country-dot{ display:inline-block; width:8px; height:8px; border-radius:50%; margin-right:6px; vertical-align:middle; }
   button{ background:transparent; border:1px solid var(--phosphor-dim); color:var(--phosphor);
     font-family:inherit; font-size:10px; letter-spacing:0.1em; padding:6px 9px; cursor:pointer; border-radius:2px; }
   button:hover{ background:rgba(62,240,140,0.12); border-color:var(--phosphor); }
@@ -82,19 +81,19 @@
   #list::-webkit-scrollbar-thumb{ background:var(--phosphor-dim); }
   #list::-webkit-scrollbar-track{ background:var(--scope-bg2); }
 
-  .plane-icon{ color:var(--phosphor-bright); text-shadow:0 0 6px rgba(62,240,140,0.9), 0 0 3px #000, 1px 1px 0 #000, -1px -1px 0 #000; font-size:15px;
-    line-height:15px; text-align:center; pointer-events:none; }
-  .plane-icon.ground{ color:var(--phosphor-dim); text-shadow:0 0 3px #000, 1px 1px 0 #000, -1px -1px 0 #000; }
-  .plane-icon.climb{ color:var(--cyan); text-shadow:0 0 6px rgba(95,215,255,0.9), 0 0 3px #000, 1px 1px 0 #000, -1px -1px 0 #000; }
-  .plane-icon.descend{ color:var(--amber); text-shadow:0 0 6px rgba(255,184,77,0.9), 0 0 3px #000, 1px 1px 0 #000, -1px -1px 0 #000; }
-  .plane-icon.locked{ color:#fff; text-shadow:0 0 10px #fff, 0 0 16px var(--phosphor-bright), 1px 1px 0 #000, -1px -1px 0 #000; font-size:19px; }
-  .plane-icon.dim{ color:#8a8f8c !important; text-shadow:1px 1px 0 rgba(0,0,0,0.6), -1px -1px 0 rgba(0,0,0,0.6) !important; opacity:0.55; }
+  /* 색상은 국적별로 JS에서 인라인 style로 계산해 부여함 (planeStyle 함수) — 여기선 크기/정렬만 담당 */
+  .plane-icon{ font-size:15px; line-height:15px; text-align:center; pointer-events:none; }
+  .plane-icon.locked{ font-size:19px; }
 
   .airport-icon{ color:var(--amber); font-size:11px; text-shadow:0 0 4px rgba(255,184,77,0.8), 1px 1px 0 #000, -1px -1px 0 #000; }
 
-  .route-icon{ font-size:14px; text-shadow:1px 1px 0 #000, -1px -1px 0 #000, 0 0 4px rgba(0,0,0,0.8); }
-  .route-icon.origin{ color:#3ef08c; }
-  .route-icon.dest{ color:#ff6b6b; }
+  .route-icon{ font-size:20px; text-shadow:1px 1px 0 #000, -1px -1px 0 #000, 0 0 6px rgba(0,0,0,0.9); animation: route-pulse 1.1s ease-in-out infinite; }
+  .route-icon.origin{ color:#3ef08c; text-shadow:0 0 8px #3ef08c, 1px 1px 0 #000, -1px -1px 0 #000; }
+  .route-icon.dest{ color:#ff3b3b; text-shadow:0 0 8px #ff3b3b, 1px 1px 0 #000, -1px -1px 0 #000; }
+  @keyframes route-pulse{ 0%,100%{ transform:scale(1); } 50%{ transform:scale(1.35); } }
+  .route-line-glow{ filter: blur(4px); }
+  .route-line-main{ filter: drop-shadow(0 0 3px #fff8) drop-shadow(0 0 6px #ffe066); animation: route-dash 0.6s linear infinite; }
+  @keyframes route-dash{ to{ stroke-dashoffset:-24; } }
   .route-box{ margin-top:6px; padding-top:6px; border-top:1px dashed var(--grid); line-height:1.6; }
 
   .leaflet-popup-content-wrapper{ background:var(--panel); color:var(--phosphor); border:1px solid var(--phosphor-dim);
@@ -290,16 +289,35 @@ let krHighlight = true;
 
 function isKorean(country){ return country === 'Republic of Korea'; }
 
-function planeClass(onGround, vRate){
-  if(onGround) return 'ground';
-  if(vRate !== null && vRate > 1) return 'climb';
-  if(vRate !== null && vRate < -1) return 'descend';
-  return '';
+// 국적(country)별로 일관된 색을 배정 (문자열 해시 → 팔레트 인덱스)
+const COUNTRY_PALETTE = [
+  '#3ef08c','#5fd7ff','#ffb84d','#c77dff','#ff8c42','#4dd9c0','#f2e94e',
+  '#8ecae6','#f4a261','#a3e635','#fb7185','#38bdf8','#facc15','#c084fc',
+  '#34d399','#f472b6','#93c5fd','#e76f51','#7dd3fc','#fca5a5'
+];
+function countryColor(country){
+  const s = country || '';
+  let h = 0;
+  for(let i=0;i<s.length;i++) h = (h*31 + s.charCodeAt(i)) >>> 0;
+  return COUNTRY_PALETTE[h % COUNTRY_PALETTE.length];
 }
-function planeIcon(track, cls, locked, kr, dim){
+
+// 마커에 적용할 색/투명도/글로우를 계산 (한국 강조 > 흐림 처리 > 잠금 > 국적색 순 우선순위)
+function planeStyle(country, isKr, isDim, isLocked, onGround){
+  let color;
+  if(isDim) color = '#7d827f';
+  else if(isKr) color = '#ff3b3b';
+  else color = countryColor(country);
+  const outline = '1px 1px 0 #000, -1px -1px 0 #000';
+  const glow = isLocked ? `0 0 10px #fff, 0 0 18px ${color}` : `0 0 6px ${color}`;
+  const opacity = isDim ? 0.5 : (onGround ? 0.6 : 1);
+  return `color:${color}; text-shadow:${glow}, 0 0 3px #000, ${outline}; opacity:${opacity};`;
+}
+
+function planeIcon(track, style, locked){
   const rotation = track || 0;
-  const classes = 'plane-icon ' + cls + (kr ? ' kr' : '') + (locked ? ' locked' : '') + (dim ? ' dim' : '');
-  return L.divIcon({ className:'', html:`<div class="${classes}" style="transform:rotate(${rotation}deg);">&#9992;</div>`,
+  const classes = 'plane-icon' + (locked ? ' locked' : '');
+  return L.divIcon({ className:'', html:`<div class="${classes}" style="transform:rotate(${rotation}deg); ${style}">&#9992;</div>`,
     iconSize: locked?[22,22]:[16,16], iconAnchor: locked?[11,11]:[8,8] });
 }
 function fmt(v, unit=''){ if(v===null||v===undefined) return '-'; return typeof v==='number' ? `${Math.round(v*10)/10}${unit}` : `${v}${unit}`; }
@@ -382,16 +400,16 @@ function renderFlights(states){
       }
     }
 
-    const cls = planeClass(onGround, vRate);
     const isLocked = (icao24===lockedId);
     const isKr = krHighlight && isKorean(country);
     const isDim = !!lockedId && !isLocked;
+    const style = planeStyle(country, isKr, isDim, isLocked, onGround);
     if(markers[icao24]){
       markers[icao24].setLatLng([lat,lon]);
-      markers[icao24].setIcon(planeIcon(track,cls,isLocked,isKr,isDim));
+      markers[icao24].setIcon(planeIcon(track,style,isLocked));
       if(isDim) markers[icao24].setZIndexOffset(-1000); else markers[icao24].setZIndexOffset(isLocked?1000:0);
     } else {
-      const m = L.marker([lat,lon],{icon:planeIcon(track,cls,isLocked,isKr,isDim), zIndexOffset:isDim?-1000:(isLocked?1000:0)}).addTo(map);
+      const m = L.marker([lat,lon],{icon:planeIcon(track,style,isLocked), zIndexOffset:isDim?-1000:(isLocked?1000:0)}).addTo(map);
       m.on('click', () => lockOn(icao24));
       markers[icao24]=m;
     }
@@ -438,9 +456,10 @@ function renderList(){
     const altFt = p.altitude!==null ? p.altitude*3.28084 : null;
     const spdKt = p.velocity!==null ? p.velocity*1.94384 : null;
     const isKr = krHighlight && isKorean(p.country);
+    const dotColor = isKr ? '#ff3b3b' : countryColor(p.country);
     const item = document.createElement('div');
     item.className = 'plane-item' + (p.icao24===lockedId ? ' locked' : '') + (isKr ? ' kr' : '');
-    item.innerHTML = `<div class="cs">${isKr?'🇰🇷 ':''}${p.callsign}</div><div class="meta">${p.country} · ${fmt(altFt,'ft')} · ${fmt(spdKt,'kt')}</div>`;
+    item.innerHTML = `<div class="cs"><span class="country-dot" style="background:${dotColor};"></span>${isKr?'🇰🇷 ':''}${p.callsign}</div><div class="meta">${p.country} · ${fmt(altFt,'ft')} · ${fmt(spdKt,'kt')}</div>`;
     item.addEventListener('click', () => { lockOn(p.icao24); map.setView([p.lat,p.lon], Math.max(map.getZoom(),7)); });
     listEl.appendChild(item);
   }
@@ -491,32 +510,38 @@ function drawRoute(route){
   currentRoute = route;
   routeLineLayer = null;
   const o = route.origin, d = route.destination;
-  const originIcon = L.divIcon({ className:'', html:'<div class="route-icon origin">&#9650;</div>', iconSize:[14,14], iconAnchor:[7,7] });
-  const destIcon = L.divIcon({ className:'', html:'<div class="route-icon dest">&#9679;</div>', iconSize:[14,14], iconAnchor:[7,7] });
-  L.marker([o.latitude,o.longitude],{icon:originIcon}).bindTooltip(`출발: ${airportKoName(o)} (${o.iata_code||o.icao_code})`).addTo(routeLayer);
-  L.marker([d.latitude,d.longitude],{icon:destIcon}).bindTooltip(`도착: ${airportKoName(d)} (${d.iata_code||d.icao_code})`).addTo(routeLayer);
+  const originIcon = L.divIcon({ className:'', html:'<div class="route-icon origin">&#9650;</div>', iconSize:[20,20], iconAnchor:[10,10] });
+  const destIcon = L.divIcon({ className:'', html:'<div class="route-icon dest">&#9679;</div>', iconSize:[20,20], iconAnchor:[10,10] });
+  L.marker([o.latitude,o.longitude],{icon:originIcon, zIndexOffset:900}).bindTooltip(`출발: ${airportKoName(o)} (${o.iata_code||o.icao_code})`).addTo(routeLayer);
+  L.marker([d.latitude,d.longitude],{icon:destIcon, zIndexOffset:900}).bindTooltip(`도착: ${airportKoName(d)} (${d.iata_code||d.icao_code})`).addTo(routeLayer);
   updateRouteLine();
   renderSelected();
 }
 
 // 출발 공항 → 항공기 현재 위치까지만 선을 그림 (도착지까지는 아직 안 그림).
 // 항공기 위치가 갱신될 때마다 다시 호출해서 선을 늘려감.
+// 글로우(굵고 흐린 선) + 메인(밝고 흐르는 점선) 두 겹으로 그려서 눈에 확 띄게 함.
 function updateRouteLine(){
   if(!currentRoute || !lockedId || !planeData[lockedId]) return;
   const o = currentRoute.origin;
   const p = planeData[lockedId];
   if(routeLineLayer){ routeLayer.removeLayer(routeLineLayer); }
-  routeLineLayer = L.polyline([[o.latitude,o.longitude],[p.lat,p.lon]], {color:'#ffd166', weight:2, dashArray:'4,5', opacity:0.85}).addTo(routeLayer);
+  const coords = [[o.latitude,o.longitude],[p.lat,p.lon]];
+  routeLineLayer = L.layerGroup([
+    L.polyline(coords, {color:'#ffe066', weight:9, opacity:0.35, className:'route-line-glow'}),
+    L.polyline(coords, {color:'#ffe066', weight:3, opacity:1, dashArray:'10,8', className:'route-line-main'}),
+  ]).addTo(routeLayer);
 }
 
 function refreshMarkerIcons(){
   for(const id in markers){
     const p = planeData[id];
     if(!p) continue;
-    const cls = planeClass(p.onGround,p.vRate);
     const isLocked = id===lockedId;
     const isDim = !!lockedId && !isLocked;
-    markers[id].setIcon(planeIcon(p.track,cls,isLocked,krHighlight && isKorean(p.country),isDim));
+    const isKr = krHighlight && isKorean(p.country);
+    const style = planeStyle(p.country, isKr, isDim, isLocked, p.onGround);
+    markers[id].setIcon(planeIcon(p.track,style,isLocked));
     markers[id].setZIndexOffset(isDim ? -1000 : (isLocked ? 1000 : 0));
   }
 }
