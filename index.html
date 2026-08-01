@@ -54,7 +54,14 @@
   .stat-row{ display:flex; justify-content:space-between; font-size:12px; margin-bottom:4px; }
   .stat-row span:last-child{ color:var(--phosphor-bright); }
 
+  #airlineFilter{ width:100%; background:var(--scope-bg2); border:1px solid var(--phosphor-dim); color:var(--phosphor-bright);
+    font-family:inherit; font-size:11px; padding:6px 8px; border-radius:2px; }
   #controls{ display:flex; gap:6px; flex-wrap:wrap; }
+
+  .plane-icon.kr{ color:#cd2e3a; text-shadow:0 0 8px rgba(205,46,58,0.9), 0 0 3px #000, 1px 1px 0 #000, -1px -1px 0 #000; }
+  .plane-icon.kr.locked{ color:#fff; text-shadow:0 0 10px #fff, 0 0 18px #cd2e3a, 1px 1px 0 #000, -1px -1px 0 #000; }
+  .plane-item.kr{ border-left:2px solid #cd2e3a; }
+  .plane-item.kr .cs{ color:#ff8a94; }
   button{ background:transparent; border:1px solid var(--phosphor-dim); color:var(--phosphor);
     font-family:inherit; font-size:10px; letter-spacing:0.1em; padding:6px 9px; cursor:pointer; border-radius:2px; }
   button:hover{ background:rgba(62,240,140,0.12); border-color:var(--phosphor); }
@@ -122,6 +129,7 @@
     <div class="block">
       <h2>SCOPE STATUS</h2>
       <div class="stat-row"><span>뷰포트 내 항공기</span><span id="statCount">0</span></div>
+      <div class="stat-row"><span>🇰🇷 한국 국적기</span><span id="statKr">0</span></div>
       <div class="stat-row"><span>비행중 / 지상</span><span id="statAirGround">0 / 0</span></div>
       <div class="stat-row"><span>상위 국적</span><span id="statTopCountry">-</span></div>
       <div class="stat-row"><span>마지막 갱신</span><span id="statUpdated">-</span></div>
@@ -132,7 +140,49 @@
         <button id="btnRefresh">새로고침</button>
         <button id="btnAuto" class="active">자동갱신 ON</button>
         <button id="btnTrail" class="active">궤적 ON</button>
+        <button id="btnKr" class="active">🇰🇷 국적기 강조 ON</button>
         <button id="btnUnlock">추적 해제</button>
+      </div>
+      <div style="margin-top:8px;">
+        <select id="airlineFilter">
+          <option value="">항공사: 전체</option>
+          <optgroup label="한국">
+            <option value="KAL">대한항공 KAL</option>
+            <option value="AAR">아시아나항공 AAR</option>
+            <option value="JJA">제주항공 JJA</option>
+            <option value="ABL">에어부산 ABL</option>
+            <option value="ESR">이스타항공 ESR</option>
+            <option value="TWB">티웨이항공 TWB</option>
+            <option value="ASV">에어서울 ASV</option>
+            <option value="APZ">에어프레미아 APZ</option>
+          </optgroup>
+          <optgroup label="일본">
+            <option value="JAL">일본항공 JAL</option>
+            <option value="ANA">전일본공수 ANA</option>
+          </optgroup>
+          <optgroup label="중국/홍콩/대만">
+            <option value="CCA">중국국제항공 CCA</option>
+            <option value="CES">중국동방항공 CES</option>
+            <option value="CSN">중국남방항공 CSN</option>
+            <option value="CPA">캐세이퍼시픽 CPA</option>
+            <option value="CAL">중화항공 CAL</option>
+          </optgroup>
+          <optgroup label="동남아/중동">
+            <option value="SIA">싱가포르항공 SIA</option>
+            <option value="THA">타이항공 THA</option>
+            <option value="UAE">에미레이트항공 UAE</option>
+            <option value="QTR">카타르항공 QTR</option>
+          </optgroup>
+          <optgroup label="미주/유럽">
+            <option value="UAL">유나이티드 UAL</option>
+            <option value="DAL">델타 DAL</option>
+            <option value="AAL">아메리칸 AAL</option>
+            <option value="BAW">영국항공 BAW</option>
+            <option value="AFR">에어프랑스 AFR</option>
+            <option value="DLH">루프트한자 DLH</option>
+            <option value="KLM">KLM KLM</option>
+          </optgroup>
+        </select>
       </div>
     </div>
     <div class="block">
@@ -191,6 +241,10 @@ let autoRefresh = true;
 let timer = null;
 let fetchInFlight = false;
 let searchTerm = '';
+let airlineFilter = '';
+let krHighlight = true;
+
+function isKorean(country){ return country === 'Republic of Korea'; }
 
 function planeClass(onGround, vRate){
   if(onGround) return 'ground';
@@ -198,9 +252,9 @@ function planeClass(onGround, vRate){
   if(vRate !== null && vRate < -1) return 'descend';
   return '';
 }
-function planeIcon(track, cls, locked){
+function planeIcon(track, cls, locked, kr){
   const rotation = track || 0;
-  const classes = 'plane-icon ' + cls + (locked ? ' locked' : '');
+  const classes = 'plane-icon ' + cls + (kr ? ' kr' : '') + (locked ? ' locked' : '');
   return L.divIcon({ className:'', html:`<div class="${classes}" style="transform:rotate(${rotation}deg);">&#9992;</div>`,
     iconSize: locked?[22,22]:[16,16], iconAnchor: locked?[11,11]:[8,8] });
 }
@@ -250,14 +304,15 @@ function applyViewportFilter(){
   const b = map.getBounds();
   const inView = allStates.filter(s =>
     s[5]!==null && s[6]!==null &&
-    s[6]>=b.getSouth() && s[6]<=b.getNorth() && s[5]>=b.getWest() && s[5]<=b.getEast()
+    s[6]>=b.getSouth() && s[6]<=b.getNorth() && s[5]>=b.getWest() && s[5]<=b.getEast() &&
+    (!airlineFilter || (s[1]||'').trim().toUpperCase().startsWith(airlineFilter))
   );
   renderFlights(inView);
 }
 
 function renderFlights(states){
   const seen = new Set();
-  let airCount=0, groundCount=0;
+  let airCount=0, groundCount=0, krCount=0;
   const countryCount = {};
 
   const filtered = states.filter(s => s[5]!==null && s[6]!==null);
@@ -269,6 +324,7 @@ function renderFlights(states){
     seen.add(icao24);
     planeData[icao24] = {icao24,callsign,country,lat,lon,altitude,onGround,velocity,track,vRate};
     if(onGround) groundCount++; else airCount++;
+    if(isKorean(country)) krCount++;
     countryCount[country] = (countryCount[country]||0)+1;
 
     if(showTrail){
@@ -284,11 +340,12 @@ function renderFlights(states){
 
     const cls = planeClass(onGround, vRate);
     const isLocked = (icao24===lockedId);
+    const isKr = krHighlight && isKorean(country);
     if(markers[icao24]){
       markers[icao24].setLatLng([lat,lon]);
-      markers[icao24].setIcon(planeIcon(track,cls,isLocked));
+      markers[icao24].setIcon(planeIcon(track,cls,isLocked,isKr));
     } else {
-      const m = L.marker([lat,lon],{icon:planeIcon(track,cls,isLocked)}).addTo(map);
+      const m = L.marker([lat,lon],{icon:planeIcon(track,cls,isLocked,isKr)}).addTo(map);
       m.on('click', () => lockOn(icao24));
       markers[icao24]=m;
     }
@@ -305,6 +362,7 @@ function renderFlights(states){
   }
 
   document.getElementById('statCount').textContent = seen.size;
+  document.getElementById('statKr').textContent = krCount;
   document.getElementById('statAirGround').textContent = `${airCount} / ${groundCount}`;
   const top = Object.entries(countryCount).sort((a,b)=>b[1]-a[1])[0];
   document.getElementById('statTopCountry').textContent = top ? `${top[0]} (${top[1]})` : '-';
@@ -329,9 +387,10 @@ function renderList(){
   for(const p of arr){
     const altFt = p.altitude!==null ? p.altitude*3.28084 : null;
     const spdKt = p.velocity!==null ? p.velocity*1.94384 : null;
+    const isKr = krHighlight && isKorean(p.country);
     const item = document.createElement('div');
-    item.className = 'plane-item' + (p.icao24===lockedId ? ' locked' : '');
-    item.innerHTML = `<div class="cs">${p.callsign}</div><div class="meta">${p.country} · ${fmt(altFt,'ft')} · ${fmt(spdKt,'kt')}</div>`;
+    item.className = 'plane-item' + (p.icao24===lockedId ? ' locked' : '') + (isKr ? ' kr' : '');
+    item.innerHTML = `<div class="cs">${isKr?'🇰🇷 ':''}${p.callsign}</div><div class="meta">${p.country} · ${fmt(altFt,'ft')} · ${fmt(spdKt,'kt')}</div>`;
     item.addEventListener('click', () => { lockOn(p.icao24); map.setView([p.lat,p.lon], Math.max(map.getZoom(),7)); });
     listEl.appendChild(item);
   }
@@ -346,7 +405,7 @@ function lockOn(icao24){
     const p = planeData[id];
     if(!p) continue;
     const cls = planeClass(p.onGround,p.vRate);
-    markers[id].setIcon(planeIcon(p.track,cls,id===lockedId));
+    markers[id].setIcon(planeIcon(p.track,cls,id===lockedId,krHighlight && isKorean(p.country)));
   }
 }
 
@@ -391,6 +450,13 @@ document.getElementById('btnTrail').addEventListener('click', (e) => {
 });
 document.getElementById('btnUnlock').addEventListener('click', () => { lockedId=null; followLocked=false; renderSelected(); renderList(); });
 document.getElementById('searchBox').addEventListener('input', (e) => { searchTerm = e.target.value; renderList(); });
+document.getElementById('airlineFilter').addEventListener('change', (e) => { airlineFilter = e.target.value; applyViewportFilter(); });
+document.getElementById('btnKr').addEventListener('click', (e) => {
+  krHighlight = !krHighlight;
+  e.target.classList.toggle('active', krHighlight);
+  e.target.textContent = krHighlight ? '🇰🇷 국적기 강조 ON' : '🇰🇷 국적기 강조 OFF';
+  applyViewportFilter();
+});
 
 function startAuto(){ if(timer) clearInterval(timer); timer = setInterval(loadFlightData, REFRESH_MS); }
 function stopAuto(){ if(timer) clearInterval(timer); timer=null; }
