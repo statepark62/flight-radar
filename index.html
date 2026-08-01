@@ -45,8 +45,8 @@
   header .status .dot.error{ background:var(--danger); box-shadow:0 0 6px var(--danger); }
 
   #wrap-map{ position:relative; height:100%; width:100%; min-height:0; }
-  #map{ background:var(--scope-bg); height:100%; width:100%; }
-  .leaflet-container{ background:var(--scope-bg) !important; }
+  #map{ background:#e8e6df; height:100%; width:100%; }
+  .leaflet-container{ background:#e8e6df !important; }
 
   #side{ background:var(--panel); border-left:1px solid var(--grid); display:flex; flex-direction:column; min-height:0; height:100%; }
   #side .block{ padding:10px 16px; border-bottom:1px solid var(--grid); }
@@ -74,14 +74,14 @@
   #list::-webkit-scrollbar-thumb{ background:var(--phosphor-dim); }
   #list::-webkit-scrollbar-track{ background:var(--scope-bg2); }
 
-  .plane-icon{ color:var(--phosphor-bright); text-shadow:0 0 6px rgba(62,240,140,0.9); font-size:15px;
+  .plane-icon{ color:var(--phosphor-bright); text-shadow:0 0 6px rgba(62,240,140,0.9), 0 0 3px #000, 1px 1px 0 #000, -1px -1px 0 #000; font-size:15px;
     line-height:15px; text-align:center; pointer-events:none; }
-  .plane-icon.ground{ color:var(--phosphor-dim); text-shadow:none; }
-  .plane-icon.climb{ color:var(--cyan); text-shadow:0 0 6px rgba(95,215,255,0.9); }
-  .plane-icon.descend{ color:var(--amber); text-shadow:0 0 6px rgba(255,184,77,0.9); }
-  .plane-icon.locked{ color:#fff; text-shadow:0 0 10px #fff, 0 0 16px var(--phosphor-bright); font-size:19px; }
+  .plane-icon.ground{ color:var(--phosphor-dim); text-shadow:0 0 3px #000, 1px 1px 0 #000, -1px -1px 0 #000; }
+  .plane-icon.climb{ color:var(--cyan); text-shadow:0 0 6px rgba(95,215,255,0.9), 0 0 3px #000, 1px 1px 0 #000, -1px -1px 0 #000; }
+  .plane-icon.descend{ color:var(--amber); text-shadow:0 0 6px rgba(255,184,77,0.9), 0 0 3px #000, 1px 1px 0 #000, -1px -1px 0 #000; }
+  .plane-icon.locked{ color:#fff; text-shadow:0 0 10px #fff, 0 0 16px var(--phosphor-bright), 1px 1px 0 #000, -1px -1px 0 #000; font-size:19px; }
 
-  .airport-icon{ color:var(--amber); font-size:11px; text-shadow:0 0 4px rgba(255,184,77,0.8); }
+  .airport-icon{ color:var(--amber); font-size:11px; text-shadow:0 0 4px rgba(255,184,77,0.8), 1px 1px 0 #000, -1px -1px 0 #000; }
 
   .leaflet-popup-content-wrapper{ background:var(--panel); color:var(--phosphor); border:1px solid var(--phosphor-dim);
     border-radius:2px; font-family:inherit; }
@@ -164,7 +164,7 @@ const MAJOR_AIRPORTS = [
 const map = L.map('map', { zoomControl: true, attributionControl: true, minZoom: 2, maxZoom: 11 })
   .setView([36.5, 127.9], 6);
 
-L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_nolabels/{z}/{x}/{y}{r}.png', {
+L.tileLayer('https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png', {
   attribution: '&copy; OpenStreetMap &copy; CARTO · Flight data &copy; OpenSky Network',
   subdomains: 'abcd', maxZoom: 12,
 }).addTo(map);
@@ -276,7 +276,7 @@ function renderFlights(states){
       trails[icao24].push([lat,lon]);
       if(trails[icao24].length>MAX_TRAIL_POINTS) trails[icao24].shift();
       if(!trailLines[icao24]){
-        trailLines[icao24]=L.polyline(trails[icao24],{color:'#3ef08c',weight:1,opacity:0.35}).addTo(map);
+        trailLines[icao24]=L.polyline(trails[icao24],{color:'#1a7a4a',weight:2,opacity:0.55}).addTo(map);
       } else {
         trailLines[icao24].setLatLngs(trails[icao24]);
       }
