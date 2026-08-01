@@ -219,9 +219,9 @@ const MAJOR_AIRPORTS = [
 const map = L.map('map', { zoomControl: true, attributionControl: true, minZoom: 2, maxZoom: 11 })
   .setView([36.5, 127.9], 6);
 
-L.tileLayer('https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png', {
-  attribution: '&copy; OpenStreetMap &copy; CARTO · Flight data &copy; OpenSky Network',
-  subdomains: 'abcd', maxZoom: 12,
+L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+  attribution: '&copy; OpenStreetMap contributors · Flight data &copy; OpenSky Network',
+  subdomains: 'abc', maxZoom: 19,
 }).addTo(map);
 
 setTimeout(() => map.invalidateSize(), 100);
