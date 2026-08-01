@@ -4,6 +4,7 @@
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
 <title>글로벌 항공 레이더</title>
+<link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg%20xmlns%3D%27http%3A//www.w3.org/2000/svg%27%20viewBox%3D%270%200%2064%2064%27%3E%0A%3Crect%20width%3D%2764%27%20height%3D%2764%27%20rx%3D%2714%27%20fill%3D%27%2303110a%27/%3E%0A%3Ccircle%20cx%3D%2732%27%20cy%3D%2732%27%20r%3D%2726%27%20fill%3D%27none%27%20stroke%3D%27%231c6b45%27%20stroke-width%3D%272%27/%3E%0A%3Ccircle%20cx%3D%2732%27%20cy%3D%2732%27%20r%3D%2717%27%20fill%3D%27none%27%20stroke%3D%27%231c6b45%27%20stroke-width%3D%271.4%27/%3E%0A%3Ccircle%20cx%3D%2732%27%20cy%3D%2732%27%20r%3D%278%27%20fill%3D%27none%27%20stroke%3D%27%231c6b45%27%20stroke-width%3D%271%27/%3E%0A%3Cline%20x1%3D%2732%27%20y1%3D%274%27%20x2%3D%2732%27%20y2%3D%2760%27%20stroke%3D%27%231c6b45%27%20stroke-width%3D%271%27/%3E%0A%3Cline%20x1%3D%274%27%20y1%3D%2732%27%20x2%3D%2760%27%20y2%3D%2732%27%20stroke%3D%27%231c6b45%27%20stroke-width%3D%271%27/%3E%0A%3Cpath%20d%3D%27M32%206%20A26%2026%200%200%201%2058%2032%20L32%2032%20Z%27%20fill%3D%27%233ef08c%27%20fill-opacity%3D%270.18%27/%3E%0A%3Ctext%20x%3D%2732%27%20y%3D%2742%27%20font-size%3D%2728%27%20text-anchor%3D%27middle%27%20fill%3D%27%233ef08c%27%3E%26%239992%3B%3C/text%3E%0A%3C/svg%3E" />
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.css" />
 <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.js"></script>
 <style>
@@ -277,6 +278,8 @@ let followLocked = false;
 const routeLayer = L.layerGroup().addTo(map); // 선택한 항공기의 출발/도착 공항 마커+선
 const routeCache = {}; // callsign -> flightroute 응답 (재조회 방지)
 let routeState = 'idle'; // idle | loading | found | notfound | error
+let currentRoute = null;   // 현재 잠금된 항공기의 출발/도착 정보
+let routeLineLayer = null; // 출발지→현재 위치 선 (위치 갱신마다 다시 그림)
 let showTrail = true;
 let autoRefresh = true;
 let timer = null;
@@ -394,6 +397,10 @@ function renderFlights(states){
     }
   }
 
+  if(currentRoute && lockedId && seen.has(lockedId)){
+    updateRouteLine();
+  }
+
   // 사라진 마커/궤적 정리
   for(const id in markers){
     if(!seen.has(id)){
@@ -442,6 +449,8 @@ function renderList(){
 function clearRoute(){
   routeLayer.clearLayers();
   routeState = 'idle';
+  currentRoute = null;
+  routeLineLayer = null;
 }
 
 async function fetchRoute(callsign){
@@ -477,15 +486,27 @@ async function fetchRoute(callsign){
 }
 
 function drawRoute(route){
-  clearRoute();
+  routeLayer.clearLayers();
   routeState = 'found';
+  currentRoute = route;
+  routeLineLayer = null;
   const o = route.origin, d = route.destination;
   const originIcon = L.divIcon({ className:'', html:'<div class="route-icon origin">&#9650;</div>', iconSize:[14,14], iconAnchor:[7,7] });
   const destIcon = L.divIcon({ className:'', html:'<div class="route-icon dest">&#9679;</div>', iconSize:[14,14], iconAnchor:[7,7] });
   L.marker([o.latitude,o.longitude],{icon:originIcon}).bindTooltip(`출발: ${airportKoName(o)} (${o.iata_code||o.icao_code})`).addTo(routeLayer);
   L.marker([d.latitude,d.longitude],{icon:destIcon}).bindTooltip(`도착: ${airportKoName(d)} (${d.iata_code||d.icao_code})`).addTo(routeLayer);
-  L.polyline([[o.latitude,o.longitude],[d.latitude,d.longitude]], {color:'#ffd166', weight:2, dashArray:'4,5', opacity:0.85}).addTo(routeLayer);
+  updateRouteLine();
   renderSelected();
+}
+
+// 출발 공항 → 항공기 현재 위치까지만 선을 그림 (도착지까지는 아직 안 그림).
+// 항공기 위치가 갱신될 때마다 다시 호출해서 선을 늘려감.
+function updateRouteLine(){
+  if(!currentRoute || !lockedId || !planeData[lockedId]) return;
+  const o = currentRoute.origin;
+  const p = planeData[lockedId];
+  if(routeLineLayer){ routeLayer.removeLayer(routeLineLayer); }
+  routeLineLayer = L.polyline([[o.latitude,o.longitude],[p.lat,p.lon]], {color:'#ffd166', weight:2, dashArray:'4,5', opacity:0.85}).addTo(routeLayer);
 }
 
 function refreshMarkerIcons(){
