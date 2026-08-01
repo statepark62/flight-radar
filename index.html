@@ -30,13 +30,6 @@
     font-family:'Courier New', ui-monospace, 'SF Mono', Consolas, monospace;
     color:var(--phosphor); overflow:hidden; }
   #app{ display:grid; grid-template-columns: 1fr 300px; grid-template-rows: auto 1fr; height:100vh; }
-  @media (max-width: 720px){
-    html,body{ height:auto; overflow:auto; }
-    #app{ display:block; height:auto; min-height:100vh; min-height:100dvh; }
-    #wrap-map{ height:50vh; height:50dvh; }
-    #side{ border-left:none; border-top:1px solid var(--grid); height:auto; }
-    #list{ max-height:60vh; }
-  }
   header{ grid-column: 1 / -1; display:flex; align-items:flex-start; justify-content:space-between;
     padding:12px 16px 8px 16px; border-bottom:1px solid var(--grid);
     background:linear-gradient(180deg, var(--panel), var(--scope-bg)); gap:10px; flex-wrap:wrap; }
@@ -117,6 +110,16 @@
 
   #loading{ position:absolute; inset:0; display:flex; align-items:center; justify-content:center;
     background:var(--scope-bg); z-index:900; font-size:12px; letter-spacing:0.2em; color:var(--phosphor-dim); }
+  /* 모바일: 여기 맨 아래 배치 — 위의 #wrap-map/#map/#side/#list 기본 규칙보다
+     뒤에 와야 우선 적용됨 (CSS는 동일 우선순위면 나중 규칙이 이김) */
+  @media (max-width: 720px){
+    html,body{ height:auto; overflow:auto; }
+    #app{ display:block; height:auto; min-height:100vh; min-height:100dvh; }
+    #wrap-map{ height:50vh; height:50dvh; width:100%; }
+    #map{ height:100%; width:100%; }
+    #side{ border-left:none; border-top:1px solid var(--grid); height:auto; }
+    #list{ max-height:60vh; }
+  }
 </style>
 </head>
 <body>
