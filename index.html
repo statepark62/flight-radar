@@ -90,6 +90,11 @@
 
   .airport-icon{ color:var(--amber); font-size:11px; text-shadow:0 0 4px rgba(255,184,77,0.8), 1px 1px 0 #000, -1px -1px 0 #000; }
 
+  .route-icon{ font-size:14px; text-shadow:1px 1px 0 #000, -1px -1px 0 #000, 0 0 4px rgba(0,0,0,0.8); }
+  .route-icon.origin{ color:#3ef08c; }
+  .route-icon.dest{ color:#ff6b6b; }
+  .route-box{ margin-top:6px; padding-top:6px; border-top:1px dashed var(--grid); line-height:1.6; }
+
   .leaflet-popup-content-wrapper{ background:var(--panel); color:var(--phosphor); border:1px solid var(--phosphor-dim);
     border-radius:2px; font-family:inherit; }
   .leaflet-popup-tip{ background:var(--panel); }
@@ -236,6 +241,9 @@ let trailLines = {};   // icao24 -> polyline
 let planeData = {};    // icao24 -> latest state fields
 let lockedId = null;
 let followLocked = false;
+const routeLayer = L.layerGroup().addTo(map); // 선택한 항공기의 출발/도착 공항 마커+선
+const routeCache = {}; // callsign -> flightroute 응답 (재조회 방지)
+let routeState = 'idle'; // idle | loading | found | notfound | error
 let showTrail = true;
 let autoRefresh = true;
 let timer = null;
@@ -357,7 +365,7 @@ function renderFlights(states){
       map.removeLayer(markers[id]); delete markers[id];
       if(trailLines[id]){ map.removeLayer(trailLines[id]); delete trailLines[id]; }
       delete trails[id]; delete planeData[id];
-      if(id===lockedId) lockedId=null;
+      if(id===lockedId){ lockedId=null; clearRoute(); }
     }
   }
 
@@ -396,8 +404,59 @@ function renderList(){
   }
 }
 
+function clearRoute(){
+  routeLayer.clearLayers();
+  routeState = 'idle';
+}
+
+async function fetchRoute(callsign){
+  const cs = (callsign||'').trim();
+  if(!cs || cs.includes('없음')){ routeState='notfound'; renderSelected(); return; }
+  if(routeCache[cs]){
+    drawRoute(routeCache[cs]);
+    return;
+  }
+  routeState = 'loading';
+  renderSelected();
+  try{
+    // adsbdb.com: 콜사인 → 항공사/출발/도착 공항 조회. CORS 지원, 키 불필요.
+    const res = await fetch(`https://api.adsbdb.com/v0/callsign/${encodeURIComponent(cs)}`);
+    if(!res.ok) throw new Error(`HTTP ${res.status}`);
+    const data = await res.json();
+    const route = data && data.response && data.response.flightroute;
+    if(!route || !route.origin || !route.destination){
+      routeCache[cs] = null;
+      routeState = 'notfound';
+      renderSelected();
+      return;
+    }
+    routeCache[cs] = route;
+    if(cs === (planeData[lockedId]||{}).callsign?.trim()){ // 그 사이 다른 기체로 안 바뀌었을 때만 표시
+      drawRoute(route);
+    }
+  }catch(err){
+    console.warn('항로 조회 실패:', err);
+    routeState = 'error';
+    renderSelected();
+  }
+}
+
+function drawRoute(route){
+  clearRoute();
+  routeState = 'found';
+  const o = route.origin, d = route.destination;
+  const originIcon = L.divIcon({ className:'', html:'<div class="route-icon origin">&#9650;</div>', iconSize:[14,14], iconAnchor:[7,7] });
+  const destIcon = L.divIcon({ className:'', html:'<div class="route-icon dest">&#9679;</div>', iconSize:[14,14], iconAnchor:[7,7] });
+  L.marker([o.latitude,o.longitude],{icon:originIcon}).bindTooltip(`출발: ${o.municipality||''} ${o.name} (${o.iata_code||o.icao_code})`).addTo(routeLayer);
+  L.marker([d.latitude,d.longitude],{icon:destIcon}).bindTooltip(`도착: ${d.municipality||''} ${d.name} (${d.iata_code||d.icao_code})`).addTo(routeLayer);
+  L.polyline([[o.latitude,o.longitude],[d.latitude,d.longitude]], {color:'#ffd166', weight:2, dashArray:'4,5', opacity:0.85}).addTo(routeLayer);
+  renderSelected();
+}
+
 function lockOn(icao24){
-  lockedId = (lockedId===icao24) ? null : icao24;
+  const newId = (lockedId===icao24) ? null : icao24;
+  lockedId = newId;
+  clearRoute();
   renderSelected();
   renderList();
   // 아이콘 갱신
@@ -406,6 +465,9 @@ function lockOn(icao24){
     if(!p) continue;
     const cls = planeClass(p.onGround,p.vRate);
     markers[id].setIcon(planeIcon(p.track,cls,id===lockedId,krHighlight && isKorean(p.country)));
+  }
+  if(lockedId && planeData[lockedId]){
+    fetchRoute(planeData[lockedId].callsign);
   }
 }
 
@@ -418,6 +480,25 @@ function renderSelected(){
   const p = planeData[lockedId];
   const altFt = p.altitude!==null ? p.altitude*3.28084 : null;
   const spdKt = p.velocity!==null ? p.velocity*1.94384 : null;
+
+  let routeHtml = '';
+  if(routeState === 'loading') routeHtml = '<span class="empty">항로 조회 중...</span>';
+  else if(routeState === 'notfound') routeHtml = '<span class="empty">항로 정보 없음 (콜사인-항로 DB 미등록)</span>';
+  else if(routeState === 'error') routeHtml = '<span class="empty">항로 조회 실패</span>';
+  else if(routeState === 'found'){
+    const cs = p.callsign.trim();
+    const route = routeCache[cs];
+    if(route){
+      const o = route.origin, d = route.destination;
+      routeHtml = `
+        <div class="route-box">
+          ▲ 출발: <b>${o.municipality||''} ${o.name}</b> (${o.iata_code||o.icao_code})<br/>
+          ● 도착: <b>${d.municipality||''} ${d.name}</b> (${d.iata_code||d.icao_code})
+          ${route.airline ? `<br/>항공사: ${route.airline.name}` : ''}
+        </div>`;
+    }
+  }
+
   el.innerHTML = `
     <b>${p.callsign}</b><br/>
     국적: ${p.country}<br/>
@@ -426,7 +507,8 @@ function renderSelected(){
     방위: ${fmt(p.track,'°')}<br/>
     수직속도: ${fmt(p.vRate,' m/s')}<br/>
     ICAO24: ${p.icao24}<br/>
-    궤적점: ${(trails[p.icao24]||[]).length}개
+    궤적점: ${(trails[p.icao24]||[]).length}개<br/>
+    ${routeHtml}
   `;
 }
 
@@ -448,7 +530,7 @@ document.getElementById('btnTrail').addEventListener('click', (e) => {
     trailLines = {}; trails = {};
   }
 });
-document.getElementById('btnUnlock').addEventListener('click', () => { lockedId=null; followLocked=false; renderSelected(); renderList(); });
+document.getElementById('btnUnlock').addEventListener('click', () => { lockedId=null; followLocked=false; clearRoute(); renderSelected(); renderList(); });
 document.getElementById('searchBox').addEventListener('input', (e) => { searchTerm = e.target.value; renderList(); });
 document.getElementById('airlineFilter').addEventListener('change', (e) => { airlineFilter = e.target.value; applyViewportFilter(); });
 document.getElementById('btnKr').addEventListener('click', (e) => {
