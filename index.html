@@ -112,6 +112,7 @@
   .leaflet-popup-content b{ color:var(--phosphor-bright); }
   .leaflet-popup-close-button{ color:var(--phosphor-dim) !important; }
 
+  #btnRefreshTop{ font-size:13px; padding:6px 10px; }
   #banner{ position:absolute; bottom:10px; left:10px; z-index:300; background:rgba(6,24,15,0.9);
     border:1px solid var(--grid); padding:6px 10px; font-size:11.5px; color:#8fd6ae;
     max-width:360px; letter-spacing:0.02em; border-radius:2px; }
@@ -154,6 +155,8 @@
   @media (max-width: 720px){
     header .sub{ display:none; }
     #searchBox{ width:120px; }
+    #btnRefreshTop{ font-size:0; padding:8px 10px; }
+    #btnRefreshTop::before{ content:'⟳'; font-size:14px; }
   }
 </style>
 </head>
@@ -168,6 +171,7 @@
       </div>
     </div>
     <input id="searchBox" placeholder="콜사인/국적 검색..." />
+    <button id="btnRefreshTop" title="새로고침">⟳ 새로고침</button>
     <div class="status">
       <div><span class="dot" id="statusDot"></span><span id="statusText">연결 중...</span></div>
       <div class="clock" id="clock">--:--:--</div>
@@ -614,13 +618,14 @@ function renderList(){
   document.getElementById('listTitle').textContent = `TRACKED FLIGHTS (${arr.length})`;
 
   for(const p of arr){
-    const altFt = p.altitude!==null ? p.altitude*3.28084 : null;
-    const spdKt = p.velocity!==null ? p.velocity*1.94384 : null;
+    const altM = p.altitude!==null ? p.altitude : null;
+    const spdMs = p.velocity!==null ? p.velocity : null;
+    const spdKmh = spdMs!==null ? spdMs*3.6 : null;
     const isKr = krHighlight && isKorean(p.country);
     const dotColor = isKr ? '#ff3b3b' : countryColor(p.country);
     const item = document.createElement('div');
     item.className = 'plane-item' + (p.icao24===lockedId ? ' locked' : '') + (isKr ? ' kr' : '');
-    item.innerHTML = `<div class="cs"><span class="country-dot" style="background:${dotColor};"></span>${isKr?'🇰🇷 ':''}${p.callsign}</div><div class="meta">${p.country} · ${fmt(altFt,'ft')} · ${fmt(spdKt,'kt')}</div>`;
+    item.innerHTML = `<div class="cs"><span class="country-dot" style="background:${dotColor};"></span>${isKr?'🇰🇷 ':''}${p.callsign}</div><div class="meta">${p.country} · ${fmt(altM,'m')} · ${fmt(spdKmh,'km/h')}</div>`;
     item.addEventListener('click', () => { lockOn(p.icao24); map.setView([p.lat,p.lon], Math.max(map.getZoom(),7)); });
     listEl.appendChild(item);
   }
@@ -767,8 +772,9 @@ function renderSelected(){
   }
   sheet.classList.add('open');
   const p = planeData[lockedId];
-  const altFt = p.altitude!==null ? p.altitude*3.28084 : null;
-  const spdKt = p.velocity!==null ? p.velocity*1.94384 : null;
+  const altM = p.altitude!==null ? p.altitude : null;
+  const spdMs = p.velocity!==null ? p.velocity : null;
+  const spdKmh = spdMs!==null ? spdMs*3.6 : null;
   const isKr = krHighlight && isKorean(p.country);
   const color = isKr ? '#ff3b3b' : countryColor(p.country);
   const cs = p.callsign.trim();
@@ -797,7 +803,7 @@ function renderSelected(){
     const doneKm = haversineKm(o.latitude,o.longitude,p.lat,p.lon);
     const pct = totalKm>0 ? Math.min(100, Math.max(0,(doneKm/totalKm)*100)) : 0;
     const remainKm = Math.max(0, totalKm-doneKm);
-    const etaMin = (spdKt && spdKt>20) ? Math.round(remainKm/1.852/spdKt*60) : null;
+    const etaMin = (spdMs && spdMs>10) ? Math.round((remainKm*1000)/spdMs/60) : null;
     routeSection = `
       <div id="detailRoute">
         <div><div class="apcode">${o.iata_code||o.icao_code}</div><div class="apcity">${airportKoName(o)}</div></div>
@@ -818,8 +824,8 @@ function renderSelected(){
     </div>
     ${routeSection}
     <div id="detailGrid">
-      <div class="g"><div class="l">고도</div><div class="v">${fmt(altFt,' ft')}${p.onGround?' (지상)':''}</div></div>
-      <div class="g"><div class="l">지상속도</div><div class="v">${fmt(spdKt,' kt')}</div></div>
+      <div class="g"><div class="l">고도</div><div class="v">${fmt(altM,' m')}${p.onGround?' (지상)':''}</div></div>
+      <div class="g"><div class="l">지상속도</div><div class="v">${fmt(spdKmh,' km/h')}</div></div>
       <div class="g"><div class="l">방위</div><div class="v">${fmt(p.track,'°')}</div></div>
       <div class="g"><div class="l">수직속도</div><div class="v">${fmt(p.vRate,' m/s')}</div></div>
       <div class="g"><div class="l">국적</div><div class="v" style="font-size:13px;">${p.country}</div></div>
@@ -849,6 +855,7 @@ document.getElementById('btnTrail').addEventListener('click', (e) => {
   }
 });
 document.getElementById('btnMenu').addEventListener('click', () => { document.getElementById('side').classList.add('open'); });
+document.getElementById('btnRefreshTop').addEventListener('click', loadFlightData);
 document.getElementById('btnCloseMenu').addEventListener('click', () => { document.getElementById('side').classList.remove('open'); });
 document.getElementById('searchBox').addEventListener('input', (e) => { searchTerm = e.target.value; renderList(); });
 document.getElementById('airlineFilter').addEventListener('change', (e) => { airlineFilter = e.target.value; applyViewportFilter(); });
