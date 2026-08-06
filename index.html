@@ -29,15 +29,15 @@
   html,body{ margin:0; padding:0; height:100%; background:var(--scope-bg);
     font-family:'Courier New', ui-monospace, 'SF Mono', Consolas, monospace;
     color:var(--phosphor); overflow:hidden; }
-  #app{ display:grid; grid-template-columns: 1fr 300px; grid-template-rows: auto 1fr; height:100vh; }
-  header{ grid-column: 1 / -1; display:flex; align-items:flex-start; justify-content:space-between;
-    padding:12px 16px 8px 16px; border-bottom:1px solid var(--grid);
-    background:linear-gradient(180deg, var(--panel), var(--scope-bg)); gap:10px; flex-wrap:wrap; }
-  header h1{ margin:0; font-size:14px; letter-spacing:0.24em; font-weight:700; color:var(--phosphor-bright);
+  #app{ display:flex; flex-direction:column; height:100vh; height:100dvh; }
+  header{ display:flex; align-items:flex-start; justify-content:space-between;
+    padding:10px 14px; border-bottom:1px solid var(--grid);
+    background:linear-gradient(180deg, var(--panel), var(--scope-bg)); gap:10px; flex-wrap:wrap; z-index:400; position:relative; }
+  header h1{ margin:0; font-size:13px; letter-spacing:0.22em; font-weight:700; color:var(--phosphor-bright);
     text-shadow:0 0 8px rgba(62,240,140,0.55); }
-  header .sub{ font-size:9px; letter-spacing:0.14em; color:var(--phosphor-dim); margin-top:2px; }
+  header .sub{ font-size:8.5px; letter-spacing:0.1em; color:var(--phosphor-dim); margin-top:2px; }
   #searchBox{ background:var(--scope-bg2); border:1px solid var(--phosphor-dim); color:var(--phosphor-bright);
-    font-family:inherit; font-size:11px; padding:6px 10px; letter-spacing:0.06em; width:180px; border-radius:2px; }
+    font-family:inherit; font-size:11px; padding:6px 10px; letter-spacing:0.06em; width:160px; border-radius:2px; }
   #searchBox::placeholder{ color:var(--phosphor-dim); }
   header .status{ text-align:right; font-size:10px; letter-spacing:0.08em; }
   header .status .clock{ color:var(--phosphor-bright); font-size:13px; }
@@ -46,12 +46,17 @@
   header .status .dot.stale{ background:var(--amber); box-shadow:0 0 6px var(--amber); }
   header .status .dot.error{ background:var(--danger); box-shadow:0 0 6px var(--danger); }
 
-  #wrap-map{ position:relative; height:100%; width:100%; min-height:0; }
+  #wrap-map{ position:relative; flex:1; min-height:0; width:100%; }
   #map{ background:#e8e6df; height:100%; width:100%; }
   .leaflet-container{ background:#e8e6df !important; }
 
-  #side{ background:var(--panel); border-left:1px solid var(--grid); display:flex; flex-direction:column; min-height:0; height:100%; }
-  #side .block{ padding:10px 16px; border-bottom:1px solid var(--grid); }
+  /* 오른쪽에서 슬라이드되는 드로어(목록/설정) — 평소엔 숨겨져 있고 지도만 보임 */
+  #side{ position:fixed; top:0; right:0; bottom:0; width:320px; max-width:88vw;
+    background:var(--panel); border-left:1px solid var(--grid); display:flex; flex-direction:column;
+    min-height:0; transform:translateX(100%); transition:transform 0.25s ease; z-index:600;
+    box-shadow:-6px 0 24px rgba(0,0,0,0.5); }
+  #side.open{ transform:translateX(0); }
+  #side .block{ padding:10px 16px; border-bottom:1px solid var(--grid); flex:0 0 auto; }
   #side .block h2{ font-size:10px; letter-spacing:0.18em; margin:0 0 8px 0; color:var(--phosphor-dim); font-weight:700; }
   .stat-row{ display:flex; justify-content:space-between; font-size:12px; margin-bottom:4px; }
   .stat-row span:last-child{ color:var(--phosphor-bright); }
@@ -110,24 +115,54 @@
 
   #loading{ position:absolute; inset:0; display:flex; align-items:center; justify-content:center;
     background:var(--scope-bg); z-index:900; font-size:12px; letter-spacing:0.2em; color:var(--phosphor-dim); }
-  /* 모바일: 여기 맨 아래 배치 — 위의 #wrap-map/#map/#side/#list 기본 규칙보다
-     뒤에 와야 우선 적용됨 (CSS는 동일 우선순위면 나중 규칙이 이김) */
+
+  /* 하단 상세정보 시트 (FlightRadar24 스타일) — 평소엔 화면 아래로 숨겨져 있음 */
+  #detailSheet{ position:fixed; left:0; right:0; bottom:0; z-index:700; background:var(--panel);
+    border-top:1px solid var(--phosphor-dim); border-radius:14px 14px 0 0;
+    box-shadow:0 -8px 28px rgba(0,0,0,0.55); max-height:72vh; max-height:72dvh;
+    transform:translateY(105%); transition:transform 0.28s ease; display:flex; flex-direction:column; }
+  #detailSheet.open{ transform:translateY(0); }
+  #detailHandle{ width:40px; height:4px; background:var(--phosphor-dim); border-radius:2px; margin:8px auto 2px auto; flex:0 0 auto; }
+  #detailContent{ overflow-y:auto; padding:6px 18px 18px 18px; font-size:12px; line-height:1.6; }
+  #detailContent .empty{ color:var(--phosphor-dim); }
+  #detailContent .dcs{ font-size:20px; font-weight:700; letter-spacing:0.04em; }
+  #detailContent .dchip{ display:inline-block; border:1px solid var(--phosphor-dim); border-radius:4px; padding:2px 6px;
+    font-size:10px; color:var(--phosphor-bright); margin-left:6px; vertical-align:middle; }
+  #detailContent .dairline{ color:var(--phosphor-dim); margin-top:2px; font-size:12px; }
+  #detailContent .dclose{ float:right; }
+  #detailRoute{ display:flex; align-items:center; gap:8px; margin:14px 0 4px 0; }
+  #detailRoute .apcode{ font-size:18px; font-weight:700; color:var(--phosphor-bright); }
+  #detailRoute .apcity{ font-size:9px; color:var(--phosphor-dim); }
+  #detailRoute .abar{ flex:1; position:relative; height:2px; background:var(--grid); border-radius:2px; margin:0 4px; }
+  #detailRoute .abar-fill{ position:absolute; left:0; top:0; height:100%; background:var(--phosphor-bright); border-radius:2px; }
+  #detailRoute .abar-plane{ position:absolute; top:50%; transform:translate(-50%,-50%); font-size:14px; color:var(--phosphor-bright);
+    text-shadow:0 0 6px var(--phosphor-bright); }
+  #detailEta{ font-size:10px; color:var(--phosphor-dim); text-align:center; margin-bottom:10px; }
+  #detailGrid{ display:grid; grid-template-columns:1fr 1fr 1fr; gap:10px; margin-top:8px; }
+  #detailGrid .g{ background:var(--scope-bg2); border:1px solid var(--grid); border-radius:4px; padding:8px 10px; }
+  #detailGrid .g .l{ font-size:9px; color:var(--phosphor-dim); letter-spacing:0.1em; }
+  #detailGrid .g .v{ font-size:14px; color:var(--phosphor-bright); margin-top:2px; }
+  #detailPhoto{ width:100%; border-radius:6px; margin-top:12px; display:block; max-height:180px; object-fit:cover; }
+  #detailActions{ display:flex; gap:8px; margin-top:14px; }
+  #detailActions button{ flex:1; }
+
+  /* 뒤로 밀린 마커/평면 색은 JS planeStyle에서 인라인으로 계산됨 */
+  /* 모바일 */
   @media (max-width: 720px){
-    html,body{ height:auto; overflow:auto; }
-    #app{ display:block; height:auto; min-height:100vh; min-height:100dvh; }
-    #wrap-map{ height:50vh; height:50dvh; width:100%; }
-    #map{ height:100%; width:100%; }
-    #side{ border-left:none; border-top:1px solid var(--grid); height:auto; }
-    #list{ max-height:60vh; }
+    header .sub{ display:none; }
+    #searchBox{ width:120px; }
   }
 </style>
 </head>
 <body>
 <div id="app">
   <header>
-    <div>
-      <h1>GLOBAL FLIGHT RADAR</h1>
-      <div class="sub">GitHub Actions가 갱신하는 정적 데이터 · CORS 문제 없음 · 궤적/검색/공항</div>
+    <div style="display:flex; align-items:center; gap:10px;">
+      <button id="btnMenu" style="font-size:14px; padding:6px 10px;">☰</button>
+      <div>
+        <h1>GLOBAL FLIGHT RADAR</h1>
+        <div class="sub">항공기 선택 시 상세정보 표시 · GitHub Actions 정적 데이터</div>
+      </div>
     </div>
     <input id="searchBox" placeholder="콜사인/국적 검색..." />
     <div class="status">
@@ -142,7 +177,16 @@
     <div id="banner">데이터는 GitHub Actions가 몇 분 간격으로 flights.json을 갱신해 제공 (같은 저장소 내 정적 파일이라 CORS 없음) · 화면 이동/확대는 이미 받은 데이터에서 즉시 필터링 · 궤적은 접속 이후 표시</div>
   </div>
 
+  <div id="detailSheet">
+    <div id="detailHandle"></div>
+    <div id="detailContent"><span class="empty">항공기를 선택하세요</span></div>
+  </div>
+
   <div id="side">
+    <div class="block" style="display:flex; justify-content:space-between; align-items:center;">
+      <h2 style="margin:0;">MENU</h2>
+      <button id="btnCloseMenu">✕ 닫기</button>
+    </div>
     <div class="block">
       <h2>SCOPE STATUS</h2>
       <div class="stat-row"><span>뷰포트 내 항공기</span><span id="statCount">0</span></div>
@@ -158,7 +202,6 @@
         <button id="btnAuto" class="active">자동갱신 ON</button>
         <button id="btnTrail" class="active">궤적 ON</button>
         <button id="btnKr" class="active">🇰🇷 국적기 강조 ON</button>
-        <button id="btnUnlock">추적 해제</button>
       </div>
       <div style="margin-top:8px;">
         <select id="airlineFilter">
@@ -253,10 +296,6 @@
     <div class="block" style="padding-top:0;">
       <div style="font-size:9px; color:var(--phosphor-dim); letter-spacing:0.04em;">목록에 없는 항공사는 검색창에 콜사인(예: KAL123)이나 국적명을 입력해도 찾을 수 있어요.</div>
     </div>
-    <div class="block">
-      <h2>LOCKED TARGET</h2>
-      <div id="selected"><span class="empty">항공기를 선택하세요</span></div>
-    </div>
     <div class="block" style="border-bottom:none; flex:0 0 auto;">
       <h2 id="listTitle">TRACKED FLIGHTS</h2>
     </div>
@@ -350,6 +389,42 @@ const routeLayer = L.layerGroup().addTo(map); // 선택한 항공기의 출발/�
 const routeCache = {}; // callsign -> flightroute 응답 (재조회 방지)
 let routeState = 'idle'; // idle | loading | found | notfound | error
 let currentRoute = null;   // 현재 잠금된 항공기의 출발/도착 정보
+
+// 두 좌표 사이의 실제 지표면 거리(km, 하버사인 공식) — 항로 진행률/잔여거리 계산용
+function haversineKm(lat1, lon1, lat2, lon2){
+  const R = 6371;
+  const toRad = d => d*Math.PI/180;
+  const dLat = toRad(lat2-lat1), dLon = toRad(lon2-lon1);
+  const a = Math.sin(dLat/2)**2 + Math.cos(toRad(lat1))*Math.cos(toRad(lat2))*Math.sin(dLon/2)**2;
+  return 2*R*Math.asin(Math.sqrt(a));
+}
+
+const aircraftCache = {}; // icao24 -> adsbdb aircraft 정보 (기종/등록번호/사진)
+let aircraftState = 'idle'; // idle | loading | found | notfound | error
+
+async function fetchAircraftInfo(icao24){
+  if(Object.prototype.hasOwnProperty.call(aircraftCache, icao24)){
+    aircraftState = aircraftCache[icao24] ? 'found' : 'notfound';
+    if(icao24 === lockedId) renderSelected();
+    return;
+  }
+  aircraftState = 'loading';
+  if(icao24 === lockedId) renderSelected();
+  try{
+    // adsbdb.com: ICAO24(mode-s)로 기종/등록번호/소유 항공사/사진 조회. CORS 지원, 키 불필요.
+    const res = await fetch(`https://api.adsbdb.com/v0/aircraft/${icao24.toUpperCase()}`);
+    if(!res.ok) throw new Error(`HTTP ${res.status}`);
+    const data = await res.json();
+    const ac = data && data.response && data.response.aircraft;
+    aircraftCache[icao24] = ac || null;
+    aircraftState = ac ? 'found' : 'notfound';
+  }catch(err){
+    console.warn('기체 정보 조회 실패:', err);
+    aircraftCache[icao24] = null;
+    aircraftState = 'error';
+  }
+  if(icao24 === lockedId) renderSelected();
+}
 let routeLineLayer = null; // 출발지→현재 위치 선 (위치 갱신마다 다시 그림)
 let showTrail = true;
 let autoRefresh = true;
@@ -386,11 +461,22 @@ function planeStyle(country, isKr, isDim, isLocked, onGround){
   return `color:${color}; text-shadow:${glow}, 0 0 3px #000, ${outline}; opacity:${opacity};`;
 }
 
+// 줌 레벨에 따른 아이콘 배율 — 기본 줌(6) 기준, 확대할수록 커지고 축소할수록 작아짐
+function iconScaleForZoom(){
+  const zoom = map.getZoom();
+  const scale = Math.pow(1.28, zoom - 6);
+  return Math.min(3, Math.max(0.55, scale));
+}
+
 function planeIcon(track, style, locked){
   const rotation = track || 0;
   const classes = 'plane-icon' + (locked ? ' locked' : '');
-  return L.divIcon({ className:'', html:`<div class="${classes}" style="transform:rotate(${rotation}deg); ${style}">&#9992;</div>`,
-    iconSize: locked?[22,22]:[16,16], iconAnchor: locked?[11,11]:[8,8] });
+  const scale = iconScaleForZoom();
+  const base = locked ? 17 : 11; // 기본(줌 6 기준) 크기 — 평소엔 작게, 확대하면 비례해서 커짐
+  const px = Math.round(base * scale);
+  const box = px + 6;
+  return L.divIcon({ className:'', html:`<div class="${classes}" style="transform:rotate(${rotation}deg); font-size:${px}px; line-height:${px}px; ${style}">&#9992;</div>`,
+    iconSize:[box,box], iconAnchor:[box/2,box/2] });
 }
 function fmt(v, unit=''){ if(v===null||v===undefined) return '-'; return typeof v==='number' ? `${Math.round(v*10)/10}${unit}` : `${v}${unit}`; }
 
@@ -655,48 +741,90 @@ function lockOn(icao24){
   refreshMarkerIcons();
   if(lockedId && planeData[lockedId]){
     fetchRoute(planeData[lockedId].callsign);
+    fetchAircraftInfo(lockedId);
   }
 }
 
+function closeDetail(){
+  lockedId = null;
+  followLocked = false;
+  clearRoute();
+  renderSelected();
+  renderList();
+  refreshMarkerIcons();
+}
+
 function renderSelected(){
-  const el = document.getElementById('selected');
+  const sheet = document.getElementById('detailSheet');
+  const el = document.getElementById('detailContent');
   if(!lockedId || !planeData[lockedId]){
+    sheet.classList.remove('open');
     el.innerHTML = '<span class="empty">항공기를 선택하세요</span>';
     return;
   }
+  sheet.classList.add('open');
   const p = planeData[lockedId];
   const altFt = p.altitude!==null ? p.altitude*3.28084 : null;
   const spdKt = p.velocity!==null ? p.velocity*1.94384 : null;
+  const isKr = krHighlight && isKorean(p.country);
+  const color = isKr ? '#ff3b3b' : countryColor(p.country);
+  const cs = p.callsign.trim();
+  const route = routeCache[cs];
 
-  let routeHtml = '';
-  if(routeState === 'loading') routeHtml = '<span class="empty">항로 조회 중...</span>';
-  else if(routeState === 'notfound') routeHtml = '<span class="empty">항로 정보 없음 (콜사인-항로 DB 미등록)</span>';
-  else if(routeState === 'error') routeHtml = '<span class="empty">항로 조회 실패</span>';
-  else if(routeState === 'found'){
-    const cs = p.callsign.trim();
-    const route = routeCache[cs];
-    if(route){
-      const o = route.origin, d = route.destination;
-      routeHtml = `
-        <div class="route-box">
-          ▲ 출발: <b>${airportKoName(o)}</b> (${o.iata_code||o.icao_code})<br/>
-          ● 도착: <b>${airportKoName(d)}</b> (${d.iata_code||d.icao_code})
-          ${route.airline ? `<br/>항공사: ${airlineKoName(route.airline.name)}` : ''}
-        </div>`;
-    }
+  let airlineName = '';
+  if(route && route.airline) airlineName = airlineKoName(route.airline.name);
+
+  let acType = '', acReg = '', acPhoto = '';
+  const ac = aircraftCache[p.icao24];
+  if(ac){
+    acType = ac.type || ac.icao_type || '';
+    acReg = ac.registration || '';
+    acPhoto = ac.url_photo || ac.url_photo_thumbnail || '';
+    if(!airlineName && ac.registered_owner) airlineName = ac.registered_owner;
+  }
+  const acLoadingNote = (aircraftState==='loading') ? ' <span class="empty">(기체정보 조회 중...)</span>' : '';
+
+  let routeSection = '';
+  if(routeState === 'loading') routeSection = '<div class="empty" style="margin-top:14px;">항로 조회 중...</div>';
+  else if(routeState === 'notfound') routeSection = '<div class="empty" style="margin-top:14px;">항로 정보 없음 (콜사인-항로 DB 미등록)</div>';
+  else if(routeState === 'error') routeSection = '<div class="empty" style="margin-top:14px;">항로 조회 실패</div>';
+  else if(routeState === 'found' && route){
+    const o = route.origin, d = route.destination;
+    const totalKm = haversineKm(o.latitude,o.longitude,d.latitude,d.longitude);
+    const doneKm = haversineKm(o.latitude,o.longitude,p.lat,p.lon);
+    const pct = totalKm>0 ? Math.min(100, Math.max(0,(doneKm/totalKm)*100)) : 0;
+    const remainKm = Math.max(0, totalKm-doneKm);
+    const etaMin = (spdKt && spdKt>20) ? Math.round(remainKm/1.852/spdKt*60) : null;
+    routeSection = `
+      <div id="detailRoute">
+        <div><div class="apcode">${o.iata_code||o.icao_code}</div><div class="apcity">${airportKoName(o)}</div></div>
+        <div class="abar"><div class="abar-fill" style="width:${pct}%;"></div><div class="abar-plane" style="left:${pct}%;">&#9992;</div></div>
+        <div style="text-align:right;"><div class="apcode">${d.iata_code||d.icao_code}</div><div class="apcity">${airportKoName(d)}</div></div>
+      </div>
+      <div id="detailEta">추정 진행률 ${Math.round(pct)}%${etaMin!==null ? ` · 도착까지 약 ${etaMin}분 (추정치)` : ''}</div>
+    `;
   }
 
   el.innerHTML = `
-    <b>${p.callsign}</b><br/>
-    국적: ${p.country}<br/>
-    고도: ${fmt(altFt,' ft')} ${p.onGround?'(지상)':''}<br/>
-    속도: ${fmt(spdKt,' kt')}<br/>
-    방위: ${fmt(p.track,'°')}<br/>
-    수직속도: ${fmt(p.vRate,' m/s')}<br/>
-    ICAO24: ${p.icao24}<br/>
-    궤적점: ${(trails[p.icao24]||[]).length}개<br/>
-    ${routeHtml}
+    <div>
+      <button class="dclose" id="btnDetailClose">✕ 닫기</button>
+      <span class="dcs" style="color:${color};">${isKr?'🇰🇷 ':''}${p.callsign}</span>
+      ${acType?`<span class="dchip">${acType}</span>`:''}
+      ${acReg?`<span class="dchip">${acReg}</span>`:''}
+      <div class="dairline">${airlineName || p.country}${acLoadingNote}</div>
+    </div>
+    ${routeSection}
+    <div id="detailGrid">
+      <div class="g"><div class="l">고도</div><div class="v">${fmt(altFt,' ft')}${p.onGround?' (지상)':''}</div></div>
+      <div class="g"><div class="l">지상속도</div><div class="v">${fmt(spdKt,' kt')}</div></div>
+      <div class="g"><div class="l">방위</div><div class="v">${fmt(p.track,'°')}</div></div>
+      <div class="g"><div class="l">수직속도</div><div class="v">${fmt(p.vRate,' m/s')}</div></div>
+      <div class="g"><div class="l">국적</div><div class="v" style="font-size:11px;">${p.country}</div></div>
+      <div class="g"><div class="l">ICAO24</div><div class="v" style="font-size:11px;">${p.icao24}</div></div>
+    </div>
+    ${acPhoto ? `<img id="detailPhoto" src="${acPhoto}" alt="${p.callsign}" onerror="this.style.display='none'" />` : ''}
   `;
+  document.getElementById('btnDetailClose').addEventListener('click', closeDetail);
 }
 
 map.on('moveend zoomend', () => applyViewportFilter());
@@ -717,7 +845,8 @@ document.getElementById('btnTrail').addEventListener('click', (e) => {
     trailLines = {}; trails = {};
   }
 });
-document.getElementById('btnUnlock').addEventListener('click', () => { lockedId=null; followLocked=false; clearRoute(); renderSelected(); renderList(); refreshMarkerIcons(); });
+document.getElementById('btnMenu').addEventListener('click', () => { document.getElementById('side').classList.add('open'); });
+document.getElementById('btnCloseMenu').addEventListener('click', () => { document.getElementById('side').classList.remove('open'); });
 document.getElementById('searchBox').addEventListener('input', (e) => { searchTerm = e.target.value; renderList(); });
 document.getElementById('airlineFilter').addEventListener('change', (e) => { airlineFilter = e.target.value; applyViewportFilter(); });
 document.getElementById('btnKr').addEventListener('click', (e) => {
