@@ -486,6 +486,12 @@ function planeIcon(track, style, locked){
     iconSize:[box,box], iconAnchor:[box/2,box/2] });
 }
 function fmt(v, unit=''){ if(v===null||v===undefined) return '-'; return typeof v==='number' ? `${Math.round(v*10)/10}${unit}` : `${v}${unit}`; }
+// 고도 표시: 1km 미만이면 m, 1km 이상이면 km(소수 2자리)
+function fmtAlt(v){
+  if(v===null||v===undefined) return '-';
+  if(Math.abs(v) < 1000) return `${Math.round(v)} m`;
+  return `${(v/1000).toFixed(2)} km`;
+}
 
 function setStatus(state, text){
   document.getElementById('statusDot').className = 'dot' + (state==='error'?' error':state==='stale'?' stale':'');
@@ -625,7 +631,7 @@ function renderList(){
     const dotColor = isKr ? '#ff3b3b' : countryColor(p.country);
     const item = document.createElement('div');
     item.className = 'plane-item' + (p.icao24===lockedId ? ' locked' : '') + (isKr ? ' kr' : '');
-    item.innerHTML = `<div class="cs"><span class="country-dot" style="background:${dotColor};"></span>${isKr?'🇰🇷 ':''}${p.callsign}</div><div class="meta">${p.country} · ${fmt(altM,'m')} · ${fmt(spdKmh,'km/h')}</div>`;
+    item.innerHTML = `<div class="cs"><span class="country-dot" style="background:${dotColor};"></span>${isKr?'🇰🇷 ':''}${p.callsign}</div><div class="meta">${p.country} · ${fmtAlt(altM)} · ${fmt(spdKmh,'km/h')}</div>`;
     item.addEventListener('click', () => { lockOn(p.icao24); map.setView([p.lat,p.lon], Math.max(map.getZoom(),7)); });
     listEl.appendChild(item);
   }
@@ -824,7 +830,7 @@ function renderSelected(){
     </div>
     ${routeSection}
     <div id="detailGrid">
-      <div class="g"><div class="l">고도</div><div class="v">${fmt(altM,' m')}${p.onGround?' (지상)':''}</div></div>
+      <div class="g"><div class="l">고도</div><div class="v">${fmtAlt(altM)}${p.onGround?' (지상)':''}</div></div>
       <div class="g"><div class="l">지상속도</div><div class="v">${fmt(spdKmh,' km/h')}</div></div>
       <div class="g"><div class="l">방위</div><div class="v">${fmt(p.track,'°')}</div></div>
       <div class="g"><div class="l">수직속도</div><div class="v">${fmt(p.vRate,' m/s')}</div></div>
