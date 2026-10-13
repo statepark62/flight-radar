@@ -133,7 +133,15 @@
   #detailContent .dchip{ display:inline-block; border:1px solid var(--phosphor); border-radius:4px; padding:3px 8px;
     font-size:12px; font-weight:700; color:var(--phosphor-bright); margin-left:8px; vertical-align:middle; }
   #detailContent .dairline{ color:#8fd6ae; margin-top:4px; font-size:14px; }
-  #detailContent .dclose{ float:right; font-size:12px; padding:8px 12px; }
+  #detailContent .dclose{ font-size:12px; padding:8px 12px; }
+  #detailContent .dbtns{ float:right; display:flex; gap:6px; }
+  #detailHandle{ cursor:pointer; position:relative; }
+  #detailHandle::after{ content:''; position:absolute; left:0; right:0; top:-8px; height:26px; }
+  #detailSheet{ transition:transform 0.28s ease; }
+  #detailSheet.collapsed #detailContent{ padding-bottom:12px; }
+  #detailSheet.collapsed .dbody{ display:none; }
+  #detailSheet.collapsed .dcs{ font-size:20px; }
+  #detailSheet.collapsed .dairline{ margin-top:2px; font-size:12.5px; }
   #detailRoute{ display:flex; align-items:center; gap:10px; margin:18px 0 6px 0; }
   #detailRoute .apcode{ font-size:22px; font-weight:700; color:#fff; }
   #detailRoute .apcity{ font-size:11.5px; color:#8fd6ae; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; max-width:130px; }
@@ -749,6 +757,7 @@ function refreshMarkerIcons(){
 function lockOn(icao24){
   const newId = (lockedId===icao24) ? null : icao24;
   lockedId = newId;
+  if(newId) detailCollapsed = false; // 새 항공기를 선택하면 펼쳐서 보여줌
   clearRoute();
   renderSelected();
   renderList();
@@ -758,6 +767,14 @@ function lockOn(icao24){
     fetchAircraftInfo(lockedId);
   }
 }
+
+let detailCollapsed = false; // 상세정보 시트 접힘 상태
+function toggleDetail(){
+  detailCollapsed = !detailCollapsed;
+  renderSelected();
+  setTimeout(() => map.invalidateSize(), 300);
+}
+document.getElementById('detailHandle').addEventListener('click', toggleDetail);
 
 function closeDetail(){
   lockedId = null;
@@ -777,6 +794,7 @@ function renderSelected(){
     return;
   }
   sheet.classList.add('open');
+  sheet.classList.toggle('collapsed', detailCollapsed);
   const p = planeData[lockedId];
   const altM = p.altitude!==null ? p.altitude : null;
   const spdMs = p.velocity!==null ? p.velocity : null;
@@ -822,12 +840,16 @@ function renderSelected(){
 
   el.innerHTML = `
     <div>
-      <button class="dclose" id="btnDetailClose">✕ 닫기</button>
+      <span class="dbtns">
+        <button class="dclose" id="btnDetailToggle">${detailCollapsed ? '▲ 펼치기' : '▼ 접기'}</button>
+        <button class="dclose" id="btnDetailClose">✕ 닫기</button>
+      </span>
       <span class="dcs" style="color:${color};">${isKr?'🇰🇷 ':''}${p.callsign}</span>
       ${acType?`<span class="dchip">${acType}</span>`:''}
       ${acReg?`<span class="dchip">${acReg}</span>`:''}
       <div class="dairline">${airlineName || p.country}${acLoadingNote}</div>
     </div>
+    <div class="dbody">
     ${routeSection}
     <div id="detailGrid">
       <div class="g"><div class="l">고도</div><div class="v">${fmtAlt(altM)}${p.onGround?' (지상)':''}</div></div>
@@ -838,8 +860,10 @@ function renderSelected(){
       <div class="g"><div class="l">ICAO24</div><div class="v" style="font-size:13px;">${p.icao24}</div></div>
     </div>
     ${acPhoto ? `<img id="detailPhoto" src="${acPhoto}" alt="${p.callsign}" onerror="this.style.display='none'" />` : ''}
+    </div>
   `;
   document.getElementById('btnDetailClose').addEventListener('click', closeDetail);
+  document.getElementById('btnDetailToggle').addEventListener('click', toggleDetail);
 }
 
 map.on('moveend zoomend', () => applyViewportFilter());
